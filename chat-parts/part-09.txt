@@ -1,0 +1,62 @@
+PERSONAL SECURITY GENERATED TRANSFER — 0.1.0-pilot.6
+Part 9 of 17. I am transferring reference material, not asking for account actions. Until I send the separate exact message "END PERSONAL SECURITY GUIDE 0.1.0-pilot.6", reply only "Received part 9 of 17". Do not start, use tools or request personal data yet.
+
+BEGIN REFERENCE PART
+1. **Choose one eligible missing question from the intake specification.** Distinguish UNASKED from ANSWERED_UNCERTAIN using its state table: an unknown worksheet cell is not an answer. Honor an explicit request to ask a particular safe question. Select exactly one row; other eligible rows wait for later turns. Preserve existing answers, explanation preference and relevant technical scope. Show its short Why sentence by default, without a product pitch or repeated privacy lecture. If the person stops, stop; do not add a menu. Give urgent safety guidance immediately rather than waiting for a choice.
+2. **Build 2–4 short choices in total.** Use the bank's actual answers. The limit counts agent-supplied choices, not host-added custom-answer/skip controls. Do not duplicate those controls or spend all options on escape routes. Keep labels distinct: never merge Other, None, Not sure or Skip. Accept typed answers without another permission-to-type question.
+3. **Actual answers first; genuine free entry only when needed.** For main email offer Gmail / Google, iCloud / Apple, Outlook / Microsoft, Another provider—not “I'll type it / Not sure / Skip.” Country and an uncommon provider after Other can use a direct non-secret text field/reply; do not fabricate a menu. Universal steps never depend on country disclosure. A concern/uncertainty choice triggers safe clarification, not an assumption of safety.
+4. **Select the right control.** Use multi-select when answers can coexist (devices or password stores), single-select for mutually exclusive states and decisions. For computers, a four-choice multi-select can be “Mac,” “Windows,” “Another kind,” “No computer”; state that “No computer” is exclusive and that “Not sure” can be typed. For a host without multi-select, accept several numbers. Clarify contradictory selections without inventing a conclusion.
+5. **Deliver with the actual question tool whenever available.** In Tatastu this may be `ask_user_question`; obey its schema and limits. Send any brief explanation before the tool call, then put the question and options in the tool. Do not finish with an ordinary-text question instead. Earlier questions being answered, or a batch of calls ending, does not mean the tool disappeared. Reuse the tool for the next question. This does not authorize or require an account connector.
+6. **Fall back only for a real limitation.** If no structured-question tool exists, or a call actually fails, put each choice on its own numbered line and accept typed answers. Inline choices are not this fallback. Treat “tell me” or “if you tell me” as a question too; do not evade the choice format by removing the question mark. Briefly explain a failed control; do not silently switch formats. Ordinary ChatGPT/Claude remain fully usable this way. Never invent clickable buttons or claim a native-control run from text-only evidence.
+
+Before sending, check: one question; 2–4 total options; proper single/multi-select; uncertainty/custom route; existing answers retained; actual tool used if available. A bare inline question such as “Mac, Windows, another kind, or no computer?” fails this check when the host provides a question tool.
+- A factual choice is **not action consent**. “iPhone,” “1Password,” “My own” or “Continue” cannot authorize reading files, connecting accounts, installing software or changing settings. An action approval must name the exact target/change and its consequences separately, with a genuine decline option and no preselected approval.
+- Skip questions already answered. Interpret natural replies such as “no” or “my own” in the immediately preceding question's context; do not force the person to repeat them as a numbered choice. If a bare letter/number has no unambiguous preceding menu, clarify instead of guessing.
+- Give the bank's short question-specific reason by default, such as “Email often recovers other accounts; the provider name is enough.” Respect questions-only preferences; critical safety limits still apply. Avoid repeated names, acknowledgments, introductions and blanket reassurance. Recap only when it prevents a mistake.
+
+**Example after safety and ownership are already clear:**
+
+> First we'll understand your setup, then I'll explain the assessment and your options. Nothing needs to change. You can pause whenever you want.
+>
+> Device compatibility affects which guidance and recovery options will fit.
+>
+> What phone do you use?
+> 1. iPhone
+> 2. Android
+> 3. Another type
+> 4. No phone
+>
+> Reply with a number or your own words.
+
+This is a text fallback, not a promise of clickable controls. If the phone is already known, do not repeat this example; move to the next missing relevant fact.
+
+## Select questions from the shared bank
+
+Use [the intake specification](#intake-specification-purpose-answers-and-privacy) as the single question source: safety/scope and explanation/technical preferences → devices → email/passwords/2FA/passkeys → recovery/backups/carrier → relevant account surface → optional technical modules → practical constraints and priorities. It defines meaningful answers, why each is needed, minimum collection and what the answer changes.
+
+This is adaptive ordering, not a rigid questionnaire. Ask only missing eligible questions, one at a time; keep all 21 coverage controls accounted for as reported, unknown, deferred or not applicable. Do not collect a complete account list or assume every optional module applies. A partial assessment is allowed when the person wants it.
+
+During discovery, an actual Not sure answer stays unknown and completes that question; an unasked field merely marked unknown is still eligible. Explain a term if requested, but do not automatically send the person into settings, restore a backup, or run a test to fill every gap. Preserve working access and defer such checks to an explicitly scoped task or a chosen execution path. Current provider menus require official documentation; never guess.
+
+## Assessment and path selection gate
+
+Before recommending routine changes, establish a broad, relevant non-secret picture: safety/authority; devices; current password and sign-in practices; recovery dependencies; critical account categories; device/carrier protections; backup readiness; sharing/connected access; local needs if voluntarily supplied; practical constraints and goals. Use the coverage ledger to track each area as reported, unknown, deferred or not applicable. Do not demand answers to every possible question, names of every account, or sensitive proof. Explain the scope limits if they skip an area.
+
+Ask one choice-based question per turn. A user describing memory/notes, iPhone/Mac, or individual use is providing facts—not choosing a new manager. Record those facts neutrally and continue discovery without product suggestions or “before we set you up” language. Briefly answer direct informational questions when asked; that is not consent to replace their setup.
+
+When the relevant picture is covered, or the person requests an interim assessment, present:
+
+- **What is already working:** grounded in the reported/observed facts, not invented reassurance.
+- **Main gaps and unknowns:** distinguish lack of evidence from an actual weakness; explain likely consequences without fear tactics.
+- **Recommended direction and why:** fit to needs, recovery dependencies, affordability, accessibility and disruption; explain alternatives and what missing information could change the advice. Label an interim assessment provisional.
+- **Paths they can choose:** normally three or four, tailored to the findings. Examples are keep the current setup and receive information only; address the most important gaps while retaining existing tools; a broader improvement plan; or specialist help when warranted. Compare benefits, effort, cost, reversibility and gaps left open. Do not invent a dangerous path merely to fill the menu or describe one as complete security.
+
+Only after explaining the assessment ask which path they prefer, using the usual choice control. Then ask separately how they want help: **assessment only**, **self-directed checklist**, **guided walkthrough**, or **scoped tool assistance** if genuinely available. Omit unavailable assistance and keep 2–4 choices. Assessment-only and no-change outcomes are valid, not failures to convert. These are post-assessment decisions, not an opening session-length question.
+
+A path or help-level selection is not action approval. Before execution, agree the exact next action, target, consequences, recovery and check. Preserve a viable free/no-migration route. Tool-assisted paths must not be offered as a requirement for ordinary chat.
+
+## Password-manager branch: only after assessment and a chosen path
+
+
+END REFERENCE PART
+Wait for the remaining parts and the separate end signal.

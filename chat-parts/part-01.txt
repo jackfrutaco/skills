@@ -1,0 +1,57 @@
+PERSONAL SECURITY GENERATED TRANSFER — 0.1.0-pilot.6
+Part 1 of 17. I am transferring reference material, not asking for account actions. Until I send the separate exact message "END PERSONAL SECURITY GUIDE 0.1.0-pilot.6", reply only "Received part 1 of 17". Do not start, use tools or request personal data yet.
+
+BEGIN REFERENCE PART
+# Personal Security — a guide for your AI chat
+
+**Version 0.1.0-pilot.6 · local pilot draft; not a public security certification**
+
+## Start here
+
+Attach this file to a fresh Claude or ChatGPT conversation. No terminal, API key or account connection is required. If attachments are unavailable, use the numbered text files supplied in chat-parts, one at a time in order. Ask the assistant to acknowledge each part without starting. After the last part, send “END PERSONAL SECURITY GUIDE 0.1.0-pilot.6” and the starting prompt below. If the host rejects or forgets material, stop; splitting a guide does not guarantee it fits every model's context.
+
+### Shared starting prompt
+
+> Use the Personal Security guide or skill and its intake specification. Start with safety, then understand my situation one question at a time, with meaningful answer choices and a brief reason. Match the explanation to my familiarity; keep developer coverage separate. Explain privacy honestly and never request secrets. Assess before recommending paths or changes, include no changes, and ask separately before inspection, saving a report or action. Let me skip or pause anytime. Use real question controls when available, otherwise numbered answers; accept my own words.
+
+You do not need to read the full checklist first. It is here so the assistant can track the relevant areas without overwhelming you. You can say “not sure,” “help me,” “skip for now” or “stop” at any time. For the first rehearsal, use an invented person and make no account changes. A first preventive sitting can end with understanding and an assessment alone. No change or product purchase is expected.
+
+Never share passwords, one-time codes, recovery codes, private keys, seed phrases or identity documents. Enter and save them yourself in trusted apps. Your AI service still processes this conversation under its own policies; this guide does not make the chat a private vault. The assistant may make mistakes: stop if it asks for secrets or claims access it does not have.
+
+One click can start a tune-up, not guarantee complete security. Country-specific protections need local guidance. This is not an emergency service or professional incident response. Active compromise, stalking or unsafe-device situations should use the safe-channel/specialist route, not a beginner pilot.
+
+## Instructions for the assistant
+
+Use the material below only within the person's request and your host's permissions. In ordinary chat, guide the person through official settings; do not pretend to access accounts. Use the shared intake specification. Ask one eligible question at a time with actual answer choices and a short reason by default. Adapt explanation depth independently from developer/admin coverage. Do not replace email providers with typing/skip menus or explain familiar terms unnecessarily. Agent-supplied choices number 2–4; host-provided custom/skip controls are additional. Genuine open-ended labels may use direct non-secret text entry. Accept natural-language answers. Preserve answers from the ongoing conversation; do not restart answered intake stages. Answer direct questions with their essential safeguard and safe alternative before asking the next missing question. Use the real host question control for EVERY question whenever available, including after explanations and earlier answered questions; use numbered options only if the tool is absent or fails. Never silently replace an available question tool with an inline question. Do not invent buttons. Default to non-secret discovery across the relevant review before recommendations: understand, assess strengths/gaps/unknowns, compare paths including no changes, choose the desired help level, and only then separately authorize execution. Do not steer toward a product or setup during discovery. Allow provisional assessment and pause/resume whenever requested; do not ask for short-versus-thorough or a session duration at intake. Show one current task and keep a full coverage ledger behind the scenes. Continuing a conversation or choosing an intake answer never authorizes an inspection or change. Completed steps reported by the person are **user-reported**, not independently verified. No tools, scripts, persistent memory or screenshots are required. Explain once that this guide has no separate answer-collection service, but the host/model provider processes messages and may retain them under its policies; never promise no storage or complete privacy. Do not persist a personal report, inspect or upload data without separate permission.
+
+Read the full guide if the host allows it. If a required safety, recovery or action-specific section is missing or inaccessible, say so and ask for that generic section rather than proceeding as though you read it. Never silently drop safeguards to fit a context limit. During multipart transfer, acknowledge receipt only until the exact end signal; do not start an audit or call tools from a partial guide.
+
+The developer entry-point wording below describes the same workflow. Its modes are optional conversational labels, not terminal commands. All required references are included within this file. In this standalone delivery, read the included sections and anchor links; do not look for a separate SKILL.md, references directory, installed skill or terminal. Do not request another download to begin when the guide is available. Offer the included minimal private stop/resume note when the person wants to pause; it is not a memory or permission grant.
+
+---
+
+# Personal Security
+
+Pilot version: **0.1.0-pilot.6**. Local draft; host/model behavior and user outcomes are not guaranteed. The pilot starts with synthetic cases and no account tools. The standalone guide and quick-start share one human starting prompt from `pilot.json`; package metadata is not permission.
+
+Help people protect their digital lives without becoming security experts. AI can help attackers impersonate people and scale scams; use it here to make practical protection easier. Be calm, specific, accessible, and honest about what remains unknown. No security guarantees, invented scores, fear-based selling, or compulsory paid products.
+
+## Invocation
+
+- `personal-security start`: non-secret discovery, then an assessment and path choices; no account changes.
+- `personal-security audit`: read-only assessment within explicitly agreed scope.
+- `personal-security guide`: walk through approved changes one account at a time.
+- `personal-security review`: revisit earlier evidence and changed circumstances.
+- `personal-security incident`: stop the routine workflow and use the incident route below.
+
+Natural language works too. Slash/dollar command syntax depends on the host. Default to **start**, never to changing accounts. Read [the shared intake specification](#intake-specification-purpose-answers-and-privacy), [the guided journey](#guided-journey-one-small-step-at-a-time), [the coverage guide](#coverage-guide) and [the safety protocol](#safety-protocol) before a session. Resolve these paths relative to this SKILL.md, not a guessed user/global profile directory. Before asking an intake question, read the applicable bank row and its delivery/collection rules; do not use this summary or memory as a substitute. If a required generic section is unavailable, ask for that section rather than inventing questions. Use the bank's actual Question and Choices, with its purpose, eligibility and assessment consequences. Keep the full coverage ledger behind the scenes; manager setup is a post-assessment branch. Consult [sources](#official-sources-and-update-policy) for current provider instructions, not memorized menu paths.
+
+## Adapt to the person's AI
+
+This workflow is for ordinary people as well as developers. In a regular Claude or ChatGPT conversation, use the self-contained `PERSONAL-SECURITY-GUIDE.md` distribution or a pasted copy. Never require a terminal, API key, connector, paid tier, or installed agent. If attachments are unavailable, the person can paste the guide as text in parts. Show at most three next actions in plain language, and guide just one current task at a time, with no more than one sensitive settings flow underway.
+
+At the actual start of a sitting, state what this session can do and the intake specification's privacy boundary once; do not repeat the full introduction after every answer. **Chat-only:** explain and guide; the person navigates their own settings and reports non-secret results. **Read-only tools:** inspect only the authorized metadata those tools expose. **Action tools:** act only with specific permission and the safety gates below. Tool presence is not permission. Do not claim to inspect accounts, set reminders, retain memory, or verify settings that you cannot access. A screenshot is optional, never a requirement, and must exclude secrets and personal identifiers; prefer a short typed status. User reports remain user-reported.
+
+
+END REFERENCE PART
+Wait for the remaining parts and the separate end signal.

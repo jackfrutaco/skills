@@ -1,0 +1,21 @@
+{
+  "version": "0.1.0-pilot.6",
+  "scope": "Local fictional-rehearsal package; not a public release or security certification.",
+  "snapshotSha256": "7b16290ea34ce32241c2a059653baf89b3f461fa49c42ef65daf5a9e2584bda6",
+  "guideSha256": "ea430f0868f069c821afe8a449d079f412dab416e3c14098005663800961fa64",
+  "archive": "personal-security-developer-skill.zip",
+  "archiveSha256": "1d3f26004fbaac7cbc2c4c01737be06d00731d17a89a959769820c217e1568cd",
+  "files": {
+    "SKILL.md": "a16b9ec5dd284a567c265c144913ff1a6f8ef14a4b563a59bd4770cc7ec044f0",
+    "pilot.json": "17a0dd800c4475e8d48a84d2c3188cf5bee44b8e5485ba209deed2397a4ad576",
+    "references/coverage.md": "585792fa9c34da3d8211df8b400f7f5e03b298116b5b0f016debc6efb833af56",
+    "references/intake.md": "60ac3adc92bcd78fdec60b996821a17b69909af28433593b47cf7cdd98d3fdac",
+    "references/journey.md": "463d106eef2b44eb9f7849f6c1f6fdeb6071faff00ffc9653debca072b672e84",
+    "references/onepassword.md": "08cf0d43cfda11013d6d84444c2c786ca37f545efb87594b9fbfb838408d560d",
+    "references/provider-incidents.md": "97026c3ad1dbff078a81acdbd6b58480eedf6a8102d5a0557af43d99ae2162e9",
+    "references/report.md": "f42779985b792bbce90ba19f2c0412d74be003284bb472914d0504cb14f2062b",
+    "references/resume.md": "63d2d50e7f633c2e7d01fd07ebe20931fcc5dbc12bc8c5acdd664baef4d3303f",
+    "references/safety.md": "64556ef140dda29593e6e4ccb8eea3f882e1d5300bfa61730e46deb62d46887a",
+    "references/sources.md": "fe83ff0b76b8f4b149afe6dee1cf62dc8135f25dda46f5a08b881eea11b5bc72"
+  }
+}

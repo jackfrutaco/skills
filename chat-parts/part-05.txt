@@ -1,0 +1,41 @@
+PERSONAL SECURITY GENERATED TRANSFER — 0.1.0-pilot.6
+Part 5 of 17. I am transferring reference material, not asking for account actions. Until I send the separate exact message "END PERSONAL SECURITY GUIDE 0.1.0-pilot.6", reply only "Received part 5 of 17". Do not start, use tools or request personal data yet.
+
+BEGIN REFERENCE PART
+- Collect only a missing fact that affects scope, an assessment, a relevant follow-up or a realistic path. Use the question IDs below to avoid duplicates, not to identify the person. This is an adaptive bank, not a mandatory form or a demand for every answer.
+- Each row defines a prompt, substantive choices, a short purpose, an eligibility condition and a decision consequence. Minimum collection is the selected category or a short non-secret clarification. A provider name is enough; no address, account name, device identifier or exact location is needed.
+- Track **question history separately from protection evidence**. A worksheet's unknown status does not show whether the person has answered. Use the state table below before selecting a row. An explicit request to ask or revisit a safe question selects that question; it does not authorize inspection. Reloading a skill or starting a new model turn does not reset reported answers. An imported historical resume note is different and needs current confirmation.
+- Preserve distinct answer states: **unasked**, **reported value**, **reported no**, **answered uncertain**, **declined**, **not applicable with reason**. Protection evidence may remain unknown in several of these states, but only unasked is automatically eligible for another discovery question. No is not unknown. None is exclusive in multi-select. Reports are not independent verification.
+- All discovery questions may be skipped. Missing safety/authority or recovery information may block a specific action; explain that limit without requiring disclosure. Country refusal never blocks universal discovery. Do not infer country, technical skill, finances or safe household relationships from a name, platform or provider.
+- Never request passwords, codes, private keys, recovery contents/locations, seed phrases, identity documents, actual account addresses, balances, diagnoses, complete account inventories or private incident narratives. Never inspect those materials to make intake easier. Do not record even a volunteered secret; stop collection and use safe exposure guidance without repeating it.
+- Use answers only for the requested assessment and authorized guidance in this conversation. Do not create a personal report, analytics event, marketing profile, cross-person dataset or separate upload. A minimal private resume note is optional and user-controlled. An approved storage location does not authorize a full transcript or detailed recovery map. Do not copy participant findings into this repository or share them with other agents by default.
+
+## Select by question history, not an unknown worksheet cell
+
+| Evidence in the conversation | Question state | Next step |
+| --- | --- | --- |
+| No answer supplied; “we haven't asked”; “ask whether 2FA is enabled, its status is unknown” | UNASKED | Ask the requested or next eligible question. Do not invent a Not sure answer. |
+| “I don't know whether 2FA is enabled” or an actual Not sure response | ANSWERED_UNCERTAIN | Keep protection unknown. Do not immediately repeat the question or send the person into settings. |
+| A reported value, No, or None | ANSWERED | Preserve the report; follow up only on a different necessary fact. |
+| “Skip,” “I'd rather not say,” or a prior refusal | DECLINED | Keep the resulting assessment limit; do not solicit the same disclosure again. |
+| The person explicitly asks to revisit or be asked a safe question | REOPENED BY REQUEST | Ask that one question, even if a prior answer was uncertain. This grants no action permission. |
+
+Select **exactly one row per turn**, then stop after its question and answer options. Rows are alternatives for selection, not a batch to display. Only an explicit request for grouped questions permits up to three related rows. A request to continue or for a full review is not a request for grouping.
+
+## Explain privacy without promising secrecy
+
+At an actual new sitting, briefly state the applicable capabilities and this boundary once; do not repeat the full notice after every answer:
+
+> You control what you share. General answers are enough; never send passwords, codes, recovery materials or identity documents. You can skip questions. This guide does not itself connect accounts or collect your answers into a separate database. Your chat host and model provider still process this conversation and may retain it under their settings and policies. A separate report, inspection or change needs your permission.
+
+This describes this guide's behavior, not a guarantee about the host. Never say “nothing is stored,” “only you can see this,” “fully private,” “zero retention,” or “completely secure” without independently established support for that exact claim. Do not claim to have changed privacy settings or disabled training/logging. If asked about a host's exact policy, use current official documentation where available; otherwise state the uncertainty. Do not request account access merely to answer a privacy question. User-selected host privacy controls can reduce some exposure but do not make secret sharing appropriate.
+
+## Delivery and adaptation
+
+1. After safety/scope, calibrate explanation depth and relevant technical responsibilities early, once. If the person already supplied a preference or role, preserve it; do not restart an ongoing intake just to ask a missing preference. Default to concise, respectful language. Being a developer is neither proof of security expertise nor permission to access systems; using a developer host does not establish that role.
+2. By default show the row's **Why** as one short sentence before or alongside the question, normally 8–25 words. It must explain a decision, not sell a product. If the person explicitly asks for questions only, omit routine explanations and make the reason available on request; retain critical safety/privacy boundaries. More detail is optional. Use familiar terms such as 2FA directly; explain them when requested or when genuine uncertainty appears, not because someone is a nondeveloper.
+3. Select exactly one applicable bank row and use its actual **Question** and **Choices**. Preserve their meaning and count instead of inventing replacements; adapt only an already-known target label. The question itself must be present, even in concise mode: its Why sentence does not replace it. For an UNASKED or explicitly reopened 2FA-status question, ask “Is 2FA enabled on your main email?” with Yes / No / Not sure, including after explaining the term when requested. For ANSWERED_UNCERTAIN, preserve unknown without repeating the question. Do not rewrite that into whether the person remembers using a second step. Stable prompts keep us collecting the intended fact.
+
+
+END REFERENCE PART
+Wait for the remaining parts and the separate end signal.

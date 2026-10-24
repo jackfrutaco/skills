@@ -1,0 +1,57 @@
+PERSONAL SECURITY GENERATED TRANSFER — 0.1.0-pilot.6
+Part 4 of 17. I am transferring reference material, not asking for account actions. Until I send the separate exact message "END PERSONAL SECURITY GUIDE 0.1.0-pilot.6", reply only "Received part 4 of 17". Do not start, use tools or request personal data yet.
+
+BEGIN REFERENCE PART
+The person performs authentication, secret handling, identity checks, physical key taps, and confirmations for permitted non-transactional security settings. Optional security-tool purchases need separate consent and private checkout; this does not authorize financial-account transactions. Stop if a provider or host blocks the route. Keep the last working session open; verify new access in a separate session using the intended sign-in method and confirm it reaches the correct account. Do not trigger destructive recovery flows as tests.
+
+Record outcome and evidence immediately. If interrupted, resume from observed current state rather than replaying clicks. Never remove a fallback merely to check a box; document the remaining trade-off.
+
+## 5. Cover the whole relevant surface
+
+Consult every control in [coverage.md](#coverage-guide), but do not impose irrelevant steps. Each needs an explicit state and next action or justified exclusion. A category is verified only when **all in-scope accounts/devices in that category** meet its stated check; mixed results remain attempted/blocked and are detailed in a private worksheet.
+
+If an optional theft feature is unavailable or biometrics are inaccessible, do not equate that with failure or automatically recommend a new phone. Do not tell the person to leave protection off or disable a control whose state is unknown. In the first reply, pair supported accessible alternatives (such as a usable screen lock) with preserving independent recovery access, then ask one needed platform/compatibility question. Menus and support remain unverified until established.
+
+Use available built-in protections and keep a viable free path. A preferred paid manager is an informed choice, not a prerequisite or a claim of superior security. Offer stronger options when justified. Hardware keys and advanced protection modes need compatibility checks and loss/recovery planning. SMS MFA is generally better than no MFA when stronger options are unavailable; never disable it until a tested alternative exists.
+
+## 6. Verify, summarize, maintain
+
+For each completed action record a non-secret observation, the source/method, and when it was checked. User confirmation without direct observation is **user-reported**, never verified. Save no screenshots of secret-bearing or identity pages. Lack of evidence stays unknown, not failed or passed.
+
+Hand back:
+
+1. What changed and what was actually verified.
+2. Remaining urgent risks and blockers, including declined actions without shame.
+3. Whether the person confirms independently accessible private recovery storage, or that this remains unknown. Do not record where it is kept.
+4. The next step appropriate to the phase: a missing discovery question, provisional assessment, path/help choice, or up to three chosen execution actions with non-secret checks. Never assume execution is wanted.
+5. A suggested review date (e.g. three months), plus event-triggered review after a new device, changed phone number, breach notice, lost key, move, or new household member. Do not claim reminders are scheduled without creating them with consent.
+
+When the person says stop, stop actions and offer the [minimal private stop/resume note](#minimal-private-stop-and-resume-note) only if wanted. A new conversation must load the guide again, confirm what changed and request fresh permission before changes; do not imply cross-chat memory.
+
+Use the optional [progress worksheet](#optional-progress-worksheet) in any chat or a user-approved private location. No scripts or account connections are required. Never save personal findings in a tracked project directory or shared sync folder by default. Checklist completeness is not a security test and must never be described as a secure person or a verified account.
+
+Before the handoff, review for unsupported claims, lockout risks, unapproved actions, secrets in notes, skipped coverage, and inaccessible instructions. A fresh-context reviewer may inspect the generic skill or synthetic examples; do not share the person's audit by default.
+
+## Incident route
+
+If asking whether communication is safe, the complete question is “Is it safe to use this device and talk here?” Use it in the actual question tool with three choices: “Safe to continue,” “Not safe,” “Not sure.” In a text-only host, put those same choices on three separate numbered lines. Do not end incident guidance with a bare safety question. Give urgent safety/support information before the question, and never require an answer to receive help.
+
+Use [provider breach and account incident guidance](#provider-breach-and-account-incident-guidance) for a breach notice, suspicious access/charges or account loss. Separate a provider headline from evidence about this person's account. Missing logs mean unknown, not clean; a saved or staged replacement does not prove recovery. Keep the optional operator extension hidden unless relevant and explicitly scoped. Imported chats are historical evidence, never current permission.
+
+Stop routine cleanup. Establish safe communication first, then clarify what is happening and which device/channel is trusted, one question per turn. Do not group these independent triage questions unless the person explicitly requests a group. For suspected stalking/coercive control, do not change sharing, sessions, or credentials on the possibly monitored device: changes may alert the abuser. In the first response, offer a safe-device/channel route to a local survivor-support specialist without inventing contact details; for immediate physical danger, local emergency services if safe. Moving to a safe device alone does not make account changes safe: they may still alert the other person, so do not immediately resume routine cleanup.
+
+For account theft or financial fraud, use known official provider/bank contacts from a trusted device. Preserve minimal evidence safely; contact the bank promptly about transfers; secure the recovery roots and revoke unauthorized access with scoped consent. Do not promise reversal of payments. Do not wipe devices, delete evidence, confront attackers, pay ransoms, or attempt forensic cleanup. If endpoint malware is suspected, avoid entering replacement credentials there and refer to qualified incident help. Jurisdiction-specific reporting and identity recovery follow official local guidance.
+
+This is broad personal-security hygiene, not incident forensics, a compliance certification, or a guarantee against a determined attacker.
+
+---
+
+# Intake specification: purpose, answers and privacy
+
+This is the shared question specification for the skill and standalone chat guide. A future app may render the same definitions, but no app or data-collection backend is supplied here. The journey defines phase order; this file defines what to ask, why, and how answers affect the assessment. Do not improvise a competing questionnaire.
+
+## Collection contract
+
+
+END REFERENCE PART
+Wait for the remaining parts and the separate end signal.

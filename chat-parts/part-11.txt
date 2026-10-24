@@ -1,0 +1,61 @@
+PERSONAL SECURITY GENERATED TRANSFER — 0.1.0-pilot.6
+Part 11 of 17. I am transferring reference material, not asking for account actions. Until I send the separate exact message "END PERSONAL SECURITY GUIDE 0.1.0-pilot.6", reply only "Received part 11 of 17". Do not start, use tools or request personal data yet.
+
+BEGIN REFERENCE PART
+If sponsored, say clearly whether support is **proposed** or **confirmed**. No confirmed credits means no promise of free access. Confirm funded duration, renewal/card requirements, recipient account ownership and a way to continue or leave before onboarding. Obtain separate consent for any charge. Do not enroll unrelated recipients in a project-controlled family or business account as a shortcut to distribution. No sponsor receives personal findings or vault/recovery access. If someone asks to join the project's shared family account to obtain credits, decline that arrangement and offer recipient-owned access or a free alternative. Do not suggest checking with the project organizer as a way to make that pooling acceptable. A person's own suitable family setup is a separate choice; it is not a distribution mechanism for unrelated pilot recipients.
+
+## One small action at a time
+
+1. **Reach the real product.** Use the known official provider site or verified store listing, not a sponsored search result, unsolicited message or support caller. Ask before installation/account creation. The person performs authentication and any payment privately. This guide adds no browser extension of its own.
+2. **Establish a private sign-in and recovery route.** Follow current instructions for the actual account type. Explain that the account password, Secret Key/Emergency Kit, recovery code and any MFA method have distinct roles. Do not present them as interchangeable. All values remain with the person, outside chat/capture. Arrange access appropriate to the threat model outside the vault's sole dependency.
+3. **Check the dependencies, not the secret.** Ask: “If this phone and this vault were unavailable, could you reach the email and second factor needed to get back in?” Never store the only copy of the vault's own second factor inside that locked vault. If inbox access itself depends solely on the vault, resolve the cycle before adding more accounts. A recovery code alone is not an independent recovery plan.
+4. **Set supported protection and usability.** Explain local app unlock versus online account authentication. Guide supported MFA and auto-lock/biometric settings with approval and current vendor instructions. Check that accessibility and use on all intended devices are practical. Do not assume biometrics replace the primary sign-in/recovery materials.
+5. **Practice one ordinary login.** Save/use one appropriate low-stakes login privately. If changing a real password, keep the original session, save the new credential in the manager, and complete a separate intended sign-in before proceeding. Ask only for a non-secret result. Do not request a screenshot or export of a vault item. A dummy item proves practice only, not a working account login.
+6. **Roll out gradually.** Prioritize exposed/reused credentials and email/SSO, then relevant money, government/health, social and shopping accounts. Map dependencies before each change. Avoid wholesale imports or rotating every unique credential merely to show progress. Official migration support may be useful, but no export goes through the assistant; plaintext exports are not harmless backups.
+7. **Leave a clear result.** Record setup, private recovery readiness, save/use and each account's outcome separately. User reports remain user-reported. Keep unresolved dependencies visible and offer a break or the next single action.
+
+## Important recovery facts
+
+According to [1Password's recovery-code documentation](https://support.1password.com/recovery-codes/):
+
+- Generating a recovery code is supported for individual/family accounts and does not itself activate recovery. Team/business accounts have different recovery arrangements.
+- Using a code requires access to the email associated with the account. Existing 2FA remains enabled. Do not assume the code bypasses every other requirement.
+- Recovery creates a new account password and Secret Key and requires signing in again on devices. The code remains reusable unless invalidated or replaced; it is not simply a single-use MFA backup code.
+- Immediate/recent-sign-in recovery attempts may be blocked. Changing account type or organizer-initiated recovery may invalidate a prior recovery code; follow current documentation for the actual situation.
+
+**Do not trigger account recovery as a test.** Confirm private backup readiness, email/second-factor dependencies and an ordinary sign-in without consuming or exposing recovery material. If access is already lost, switch to the incident/recovery route using current official support, not repeated experiments or bypasses.
+
+## If a funded subscription ends
+
+[1Password's general billing policy](https://support.1password.com/membership-billing-policy/) says users can still sign in to view/export data after cancellation/freeze if the account has not been deleted. This does not promise all paid features continue, remove authentication requirements, or establish terms for a negotiated sponsorship. Do not describe a trial or time-limited credit as free forever.
+
+Before the end date, let the person choose paid continuation, confirmed renewed support, or a supported private migration. Never delete the old account or remove recovery until the chosen path is checked. Never ask the person to send an exported vault to the AI or project. A sponsor funds access, not ownership of someone's digital identity.
+
+---
+
+# Provider breach and account incident guidance
+
+This is a triage and guided-recovery branch, not digital forensics or an autonomous penetration test. Use it when someone receives a breach notice, sees suspicious access/charges, loses control of an account, or asks what a vendor incident means for them. A headline alone does not prove their account is compromised. Historical chat instructions do not authorize current actions.
+
+## For everyone: the next safe question
+
+Ask one short question at a time; skip known answers. Never demand a screenshot, identifier or secret to continue.
+
+1. **“Is it safe to use this device and talk here?”** If monitoring, coercion, malware or physical danger is possible, use the existing safe-device/specialist route before changes that may alert someone. Do not enter new credentials on a possibly compromised device.
+2. **“What happened: an official notice, something you noticed, or a news report?”** Independently reach the provider through its known app/site; don't click the message's sign-in link or call its number. Ask for a short non-secret description, not a forwarded inbox or raw logs. Check the notice's scope/date and whether it actually applies to the person's product/account.
+3. **“Can you still sign in, and can you reach your recovery email or backup method?”** Identify the actual account/provider using labels. An old runbook, expired address or currently open browser account is not proof of ownership. Preserve working access while planning the next action.
+4. **“Are there unfamiliar charges, sessions, recovery changes or connected apps?”** Review authorized metadata, not passwords or message bodies. Missing logs or inaccessible usage data mean unknown, not clean. Escalate suspicious payments promptly to the bank/provider through a trusted channel; never promise reimbursement.
+5. **“Does this password or connection also protect another account?”** Reused passwords, SSO, linked apps and recovery dependencies determine what else needs attention. Don't force everyone to rotate every unique password because one provider had an incident. Follow current official guidance for the actual exposure.
+6. **“What would stop working if we changed or removed this access?”** Explain consequences and preserve an independent recovery route. Obtain specific approval before a password change, sign-out, revocation, account migration or deletion. For known active abuse, discuss urgent containment and its disruption explicitly rather than waiting indefinitely for a seamless replacement; use provider/specialist help where needed.
+7. **“Did the intended sign-in work, and does the provider show the old access removed?”** The person signs in privately in a separate session, keeps the last working session until replacement access is established where safe, and reports only the non-secret outcome. Password changes do not necessarily revoke sessions or connected-app access. Check the actual applicable controls separately.
+8. **“What remains unconfirmed, and who can help next?”** Leave a small private summary of known facts, unknowns, changes, unresolved old access, support routes and next actions. Do not claim an incident is closed because one password was changed. Offer a review date, not an invented scheduled reminder.
+
+Avoid a wall of emergency tasks. Show the most urgent action plus at most two next steps. Lack of technical knowledge is not a reason to ask for broader account access.
+
+## Make each change finishable
+
+Track lifecycle facts separately from evidence status:
+
+
+END REFERENCE PART
+Wait for the remaining parts and the separate end signal.
