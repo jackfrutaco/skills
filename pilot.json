@@ -1,7 +1,0 @@
-{
-  "version": "0.1.0-pilot.6",
-  "status": "local pilot draft; not a public security certification",
-  "startPrompt": "Use the Personal Security guide or skill and its intake specification. Start with safety, then understand my situation one question at a time, with meaningful answer choices and a brief reason. Match the explanation to my familiarity; keep developer coverage separate. Explain privacy honestly and never request secrets. Assess before recommending paths or changes, include no changes, and ask separately before inspection, saving a report or action. Let me skip or pause anytime. Use real question controls when available, otherwise numbered answers; accept my own words.",
-  "endSignal": "END PERSONAL SECURITY GUIDE 0.1.0-pilot.6",
-  "maxPartCharacters": 10000
-}
