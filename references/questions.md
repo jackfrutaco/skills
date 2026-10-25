@@ -1,6 +1,10 @@
 # Question bank
 
-Ask only rows that matter for this person and haven't been answered, one per turn, roughly in this order: safety and scope → explanation and role (new reviews only) → devices → email, passwords and sign-in → recovery → accounts and optional areas → developer/admin → constraints. Most people need far fewer than all of them. "Ask if" means the fact hasn't been given yet, not that a "not sure" answer should be repeated.
+Ask only rows that matter for this person and haven't been answered, one per turn. "Ask if" means the fact hasn't been given yet, not that a "not sure" answer should be repeated.
+
+## Core questions
+
+Ask these first, in this order, skipping any already answered: S01, S02, S04, D01, D02, A01, A05, A07, A09, R01, R05, C01. Then add follow-ups only where an answer changes the first recommendations, for example A06 if they use a manager, A10 if 2FA is on, R07 and R08 if their phone number protects important accounts, two or three T rows for developers, C06 if identity or credit matters to them. Ask S03 only if they seem unsure how much detail they want. The rest are for later, if they ask to go deeper.
 
 Use each row's question and choices as written; you may adapt a label the person already gave you (for example "your Gmail" instead of "your main email"). The provider name or category is all you need: never addresses, account names, numbers, device serials or locations. Multi-select rows accept several answers; "None"/"No phone"-style answers exclude the others. No answer authorizes inspecting or changing anything.
 
@@ -82,6 +86,6 @@ Use each row's question and choices as written; you may adapt a label the person
 | ID | Question | Choices | Why we ask | Ask if / what it changes |
 | --- | --- | --- | --- | --- |
 | P01 | What budget should recommendations assume? | Free only; Paid if worthwhile; No preference yet | Recommendations should be practical without assuming a purchase. | Before the assessment, if not already said. Not payment consent. |
-| P02 | How much change would you consider? | Keep existing tools; Small changes; Open to larger changes | This helps compare realistic paths. | Before offering paths. |
-| P03 multi | What matters most to you? | Preventing account takeover; Avoiding lockout or data loss; Privacy or unwanted access; Simplicity | Priorities explain why one path fits better than another. | Goals unknown. |
+| P02 | How much change would you consider? | Keep existing tools; Small changes; Open to larger changes | This keeps recommendations realistic for you. | Before the assessment. |
+| P03 multi | What matters most to you? | Preventing account takeover; Avoiding lockout or data loss; Privacy or unwanted access; Simplicity | Priorities decide which recommendations come first. | Goals unknown. |
 | P04 multi | Should recommendations account for any practical constraints? | Accessibility needs; Shared devices or limited connectivity; Another constraint; None | This makes suggestions usable, not just technically possible. | Optional. A short note is enough; never a diagnosis. |
