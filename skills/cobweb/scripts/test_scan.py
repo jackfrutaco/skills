@@ -12,7 +12,12 @@ Reports:
   orphan_fixtures      fixture files no other file names, in a directory no file names
   dormant_env_gates    tests gated on an env var no workflow, script or hook ever sets
   test_support_in_src  fakes, stubs and fixtures that live in src/ and only tests import
-  skip_guards          counts of skipIf / runIf / skip / todo / only (counts only)
+  skip_guards          counts of skipIf / runIf / skip / todo / only / xfail / ignore (counts only;
+                       JS/TS, Python, Go, Rust and Ruby test files)
+
+The import graph reads JS/TS only. `analysed_languages` and `code_files_by_language` say what
+was read; when most of the repo's own code is in another language the JSON says
+`mostly_unchecked`, and an empty test_only_modules there means "not checked", not "clean".
 
 Usage: test_scan.py [repo] [--json] [--save=FILE]
 """
@@ -118,6 +123,21 @@ SRC_JOIN = re.compile(r"""["']src["']\s*,\s*((?:["'][\w@.-]+(?:/[\w@.-]+)*["']\s
 GATE_MARKER = re.compile(r"^\s*(?://|#)\s*test-source-text-gate:\s*\S", re.M)
 MODULE_SPEC = re.compile(r"""\b(?:from|import|vi\.(?:mock|doMock|unmock|importActual)|jest\.mock|require)\s*(?:<[^>]*>)?\s*\(?\s*["'`][^"'`]+["'`]""")
 
+# What the import graph reads. Every other language is reported as unchecked, never as clean.
+ANALYSED_LANGUAGES = ("JavaScript/TypeScript",)
+LANGUAGE = {
+    ".ts": "JavaScript/TypeScript", ".tsx": "JavaScript/TypeScript", ".js": "JavaScript/TypeScript",
+    ".jsx": "JavaScript/TypeScript", ".mjs": "JavaScript/TypeScript", ".cjs": "JavaScript/TypeScript",
+    ".mts": "JavaScript/TypeScript", ".cts": "JavaScript/TypeScript", ".vue": "JavaScript/TypeScript",
+    ".svelte": "JavaScript/TypeScript", ".astro": "JavaScript/TypeScript",
+    ".py": "Python", ".go": "Go", ".rs": "Rust", ".rb": "Ruby", ".java": "Java", ".kt": "Kotlin",
+    ".kts": "Kotlin", ".scala": "Scala", ".swift": "Swift", ".php": "PHP", ".c": "C", ".h": "C",
+    ".cc": "C++", ".cpp": "C++", ".hpp": "C++", ".cs": "C#", ".dart": "Dart", ".ex": "Elixir",
+    ".exs": "Elixir", ".lua": "Lua", ".m": "Objective-C", ".mm": "Objective-C",
+}
+SKIP_FILE_EXT = CODE_EXT + (".py", ".go", ".rs", ".rb")
+CFG_TEST = re.compile(r"#\[cfg\(test\)\]")
+
 SKIP_KINDS = {
     "skipIf": re.compile(r"\.skipIf\s*\("),
     "runIf": re.compile(r"\.runIf\s*\("),
@@ -126,9 +146,14 @@ SKIP_KINDS = {
     "xit": re.compile(r"\bx(?:it|describe|test)\s*\("),
     "fixme": re.compile(r"\.fixme\b"),
     "only": re.compile(r"\b(?:it|test|describe|suite)\.only\b"),
-    "pytest.skip": re.compile(r"@pytest\.mark\.skip(?!if)\b|\bpytest\.skip\s*\(|@unittest\.skip\b"),
-    "pytest.skipif": re.compile(r"@pytest\.mark\.skipif\b"),
-    "go.Skip": re.compile(r"\bt\.Skip(?:Now|f)?\s*\("),
+    # `x = pytest.mark.skipif(...)` is a skip guard too: no `@` required.
+    "pytest.skip": re.compile(r"\bpytest\.mark\.skip(?!if)\b|\bpytest\.skip\s*\(|\bunittest\.skip\b"),
+    "pytest.skipif": re.compile(r"\bpytest\.mark\.skipif\b|\bunittest\.skip(?:If|Unless)\b|"
+                                r"\bskip(?:Unless|If)(?:Any)?DBFeature\b"),
+    "pytest.xfail": re.compile(r"\bpytest\.mark\.xfail\b|\bpytest\.xfail\s*\(|\bunittest\.expectedFailure\b"),
+    "go.Skip": re.compile(r"\b[tb]\.Skip(?:Now|f)?\s*\("),
+    "rust.ignore": re.compile(r"#\[ignore\b"),
+    "ruby.skip": re.compile(r"^[ \t]*(?:skip|pending)\b[ \t]*\(?[ \t]*[\"']|^[ \t]*x(?:it|describe|context|specify)\b[ \t]+[\"']", re.M),
 }
 
 
@@ -968,10 +993,45 @@ class Scan:
                 switches.update(re.findall(r"""switch\s*:\s*["']([A-Z][A-Z0-9_]+)""", block))
         return files, switches
 
+    def skip_guard_files(self) -> list[str]:
+        """Test files in any language the guards are counted for: JS/TS and Python test files,
+        Go *_test.go, Rust tests/*.rs and files holding #[cfg(test)], Ruby *_test.rb and *_spec.rb."""
+        out = []
+        for f in self.files:
+            if not f.endswith(SKIP_FILE_EXT) or f not in self.texts:
+                continue
+            if self.kind[f] == "test" or (f.endswith(".rs") and CFG_TEST.search(self.texts[f])):
+                out.append(f)
+        return out
+
+    def coverage(self) -> dict:
+        """Which languages the import graph read, and how much of the repo's own code that is."""
+        by_lang: Counter = Counter()
+        for f in self.files:
+            lang = LANGUAGE.get(posixpath.splitext(f)[1].lower())
+            if lang and not self.is_generated(f):
+                by_lang[lang] += 1
+        total = sum(by_lang.values())
+        read = sum(n for lang, n in by_lang.items() if lang in ANALYSED_LANGUAGES)
+        main = by_lang.most_common(1)[0][0] if by_lang else None
+        unchecked = {lang: n for lang, n in by_lang.most_common() if lang not in ANALYSED_LANGUAGES}
+        mostly = bool(total) and read * 2 < total
+        note = None
+        if mostly:
+            note = (f"UNCHECKED for {main}: the import graph reads {', '.join(ANALYSED_LANGUAGES)} only, and "
+                    f"{total - read} of {total} own code files are in other languages. Empty test-only, source-text "
+                    f"and dormant-gate lists here mean not checked, not clean.")
+        return {"analysed_languages": [lang for lang in ANALYSED_LANGUAGES if by_lang.get(lang)],
+                "code_files_by_language": dict(by_lang.most_common()),
+                "unchecked_languages": unchecked, "main_language": main,
+                "analysed_share": round(read / total, 2) if total else None,
+                "mostly_unchecked": mostly, "unchecked_note": note}
+
     def skip_guards(self) -> dict:
         counts: Counter = Counter()
         files: dict[str, Counter] = defaultdict(Counter)
-        for f in self.test_files():
+        guard_files = self.skip_guard_files()
+        for f in guard_files:
             text = self.texts[f]
             for kind, rx in SKIP_KINDS.items():
                 n = len(rx.findall(text))
@@ -980,7 +1040,9 @@ class Scan:
                     files[kind][f] += n
         return {"counts": dict(counts.most_common()),
                 "top_files": {k: [{"file": f, "n": n} for f, n in v.most_common(3)] for k, v in files.items()},
-                "test_files": len(self.test_files())}
+                "test_files": len(guard_files),
+                "test_files_by_language": dict(Counter(LANGUAGE.get(posixpath.splitext(f)[1].lower(), "other")
+                                                       for f in guard_files).most_common())}
 
 
 def scan(root: str) -> dict:
@@ -1008,6 +1070,7 @@ def scan(root: str) -> dict:
         "dormant_env_gates": env,
         "test_support_in_src": support,
         "skip_guards": guards,
+        **s.coverage(),
         "seconds": round(time.time() - t0, 1),
     }
 
@@ -1029,6 +1092,9 @@ def main() -> None:
         return
     g = r["graph"]
     print(f"repo: {r['repo']}  tracked: {r['tracked_files']}  vendored skipped: {r['vendored_files_skipped']}  ({r['seconds']}s)")
+    print(f"read: {', '.join(r['analysed_languages']) or 'no file'}; own code files by language {r['code_files_by_language']}")
+    if r["unchecked_note"]:
+        print(f"  {r['unchecked_note']}")
     print(f"import graph: {g['code_files']} code files, {g['edges']} edges, {g['roots']} production roots, "
           f"{g['prod_reachable']} reachable, {g['workspace_packages']} workspace packages, "
           f"{g['unresolved_alias_specs']} alias imports left unresolved")
@@ -1089,7 +1155,7 @@ def main() -> None:
     show(s, 14, lambda x: f"{x['file']}  {where(x)}")
 
     k = r["skip_guards"]
-    print(f"\n[skip_guards] across {k['test_files']} test files: {k['counts'] or 'none'}")
+    print(f"\n[skip_guards] across {k['test_files']} test files {k['test_files_by_language'] or ''}: {k['counts'] or 'none'}")
 
 
 if __name__ == "__main__":

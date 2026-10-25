@@ -17,7 +17,7 @@ from collections import Counter, defaultdict
 
 sys.dont_write_bytecode = True  # keep the installed skill folder clean
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from steering_refs import emit_json, git, is_vendored, vendored_roots  # noqa: E402
+from steering_refs import SAMPLE_PATH, emit_json, git, is_vendored, vendored_roots  # noqa: E402
 
 # manifest basename -> (stack, package manager or build tool)
 MANIFESTS = {
@@ -75,6 +75,38 @@ OWN_CHECK = re.compile(r"(lint|check|knip|dead|unused|docs?|hygiene|validate|ver
                        r"format|fmt|spell|links?|drift|stale|deps?|test)", re.I)
 
 
+def tox_envs(text: str) -> list[str]:
+    """Environment names from [testenv:x] headers and envlist (braces left as written)."""
+    names = re.findall(r"^\[testenv:([^\]\s]+)\]", text, re.M)
+    for m in re.finditer(r"^envlist\s*=\s*((?:.*(?:,\s*$|\n[ \t]+.*))*.*)", text, re.M):
+        body = "\n".join(l for l in m.group(1).splitlines() if not l.strip().startswith("#"))
+        names += [n.strip() for n in re.split(r",(?![^{]*\})|\n", body) if n.strip()]
+    return list(dict.fromkeys(names))
+
+
+def nox_sessions(text: str) -> list[str]:
+    """Session names from @nox.session decorators: name="x" when given, else the function name."""
+    out = []
+    for m in re.finditer(r"@nox\.session\b(\([^)]*\))?[^\n]*\n(?:\s*@[^\n]*\n)*\s*def\s+(\w+)", text):
+        named = re.search(r"\bname\s*=\s*[\"']([^\"']+)", m.group(1) or "")
+        out.append(named.group(1) if named else m.group(2))
+    return list(dict.fromkeys(out))
+
+
+def rake_tasks(text: str) -> list[str]:
+    return list(dict.fromkeys(n.rstrip(":") for n in re.findall(r"^\s*task\s+(?::|[\"'])?([\w:-]+)", text, re.M)))
+
+
+def last_fetch_date(root: str) -> str | None:
+    """Date of the newest fetch into this clone, or None when it was never fetched
+    (a fresh clone has remote refs from the clone, not from a fetch)."""
+    common = git(root, "rev-parse", "--git-common-dir").strip()
+    fetch_head = os.path.join(common if os.path.isabs(common) else os.path.join(root, common), "FETCH_HEAD")
+    if os.path.exists(fetch_head):
+        return time.strftime("%Y-%m-%d", time.localtime(os.path.getmtime(fetch_head)))
+    return None
+
+
 def matches(path: str, prefix: str) -> bool:
     if prefix.endswith("/"):
         return path.startswith(prefix) or ("/" + prefix) in path
@@ -91,7 +123,11 @@ def detect(root: str) -> dict:
     roots: dict[str, set[str]] = defaultdict(set)
     for f in own:
         base = os.path.basename(f)
+        if SAMPLE_PATH.search(f):
+            continue  # a manifest in a test fixture or project template describes a sample, not this repo
         hit = MANIFESTS.get(base) or next((v for k, v in SUFFIX_MANIFESTS.items() if f.endswith(k)), None)
+        if hit and hit[0] == "make" and f != "Makefile":
+            hit = None  # docs/Makefile builds docs; only a root Makefile is a stack
         if hit:
             stack, tool = hit
             stacks[stack].add(tool or "")
@@ -122,6 +158,11 @@ def detect(root: str) -> dict:
     own_checks: dict[str, list[str]] = {}
     for f in own:
         base = os.path.basename(f)
+        if f in ("runtests.py", "tests/runtests.py"):
+            own_checks[f] = [f"python {f}"]
+            continue
+        if SAMPLE_PATH.search(f):
+            continue
         try:
             if base == "package.json":
                 scripts = json.load(open(os.path.join(root, f), encoding="utf-8")).get("scripts") or {}
@@ -129,12 +170,30 @@ def detect(root: str) -> dict:
             elif base in ("Makefile", "justfile"):
                 text = open(os.path.join(root, f), encoding="utf-8", errors="replace").read()
                 hits = [n for n in re.findall(r"^([A-Za-z0-9_.-]+)\s*:(?!=)", text, re.M) if OWN_CHECK.search(n)]
+            elif base in ("tox.ini", ".pre-commit-config.yaml", "pyproject.toml", "noxfile.py", "Rakefile", "rakefile"):
+                text = open(os.path.join(root, f), encoding="utf-8", errors="replace").read()
+                if base == "tox.ini":
+                    hits = tox_envs(text)
+                elif base == ".pre-commit-config.yaml":
+                    hits = list(dict.fromkeys(re.findall(r"^\s*-\s*id:\s*([\w.-]+)", text, re.M)))
+                elif base == "pyproject.toml":
+                    hits = [t for t in ("pytest", "ruff", "mypy") if re.search(rf"^\[tool\.{t}\b", text, re.M)]
+                elif base == "noxfile.py":
+                    hits = nox_sessions(text)
+                else:
+                    hits = rake_tasks(text)
             else:
                 continue
         except (OSError, ValueError):
             continue
         if hits:
             own_checks[f] = hits
+    # Cargo and Go ship their test runner: implied by the manifest, not written by the owner.
+    for manifest, implied in (("Cargo.toml", ["cargo test", "cargo clippy"]), ("go.mod", ["go test ./...", "go vet ./..."])):
+        found = sorted((f for f in own if os.path.basename(f) == manifest and not SAMPLE_PATH.search(f)),
+                       key=lambda f: (f.count("/"), f))
+        if found:
+            own_checks.setdefault(found[0], implied)
     authority = [f for f in own if re.search(
         r"(^|/)(docs/(README|INDEX|index)\.md|DISPOSITIONS\.md|adr/|decisions/|ARCHITECTURE\.md)", f)][:12]
 
@@ -151,11 +210,7 @@ def detect(root: str) -> dict:
         counts = git(root, "rev-list", "--left-right", "--count", f"HEAD...{base}").split()
         if len(counts) == 2:
             ahead, behind = int(counts[0]), int(counts[1])
-    last_fetch = ""
-    common = git(root, "rev-parse", "--git-common-dir").strip()
-    fetch_head = os.path.join(common if os.path.isabs(common) else os.path.join(root, common), "FETCH_HEAD")
-    if os.path.exists(fetch_head):
-        last_fetch = time.strftime("%Y-%m-%d", time.localtime(os.path.getmtime(fetch_head)))
+    last_fetch = last_fetch_date(root) or ""
     # The local base ref can itself be old. ls-remote is read-only; skip quietly offline.
     remote_base = None
     if default_branch and "--offline" not in sys.argv:
@@ -246,7 +301,7 @@ def main() -> None:
           f"co-authored; default branch {h['default_branch']}")
     c = r["checkout"]
     print(f"checkout: {c['branch']}, {c['ahead_of_base']} ahead / {c['behind_base']} behind {c['base']}"
-          f" (last fetch {c['last_fetch']}), {c['uncommitted_paths']} uncommitted paths")
+          f" (last fetch {c['last_fetch'] or 'never'}), {c['uncommitted_paths']} uncommitted paths")
     if c.get("base_ref_stale"):
         print(f"  WARNING: local {c['base']} is {c['local_base']} but origin has {c['remote_base']}: the base ref is "
               "itself out of date. Fetch (with permission) or say so in the report.")

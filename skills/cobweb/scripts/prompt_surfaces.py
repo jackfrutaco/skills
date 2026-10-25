@@ -24,6 +24,11 @@ and the descriptions, measures them, then checks:
                           "development checkout", "disposable QA" in shipped text
   G  banned vocabulary    words the repo's own rules say never to show, in prose literals
 
+The scan runs only where the repo shows agent code: a dependency on an LLM or agent SDK, a
+tool registration it can harvest, or a shipped SKILL.md. Anywhere else it reports
+{"agent_code": false} and no findings (a docstring's parameter names and a shell completion
+template are not prompts). Python docstrings are read as comments, never as prompt literals.
+
 Usage: prompt_surfaces.py <repo> [--json] [--save=FILE] [--all]
   --all   print every finding in the text view, not the first few per check
 """
@@ -31,6 +36,7 @@ Usage: prompt_surfaces.py <repo> [--json] [--save=FILE] [--all]
 from __future__ import annotations
 
 import bisect
+import json
 import os
 import posixpath
 import re
@@ -194,16 +200,39 @@ def scan_py(text: str) -> tuple[list[Piece], list[tuple[int, int]]]:
         starts.append(m.end())
     pieces: list[Piece] = []
     comments: list[tuple[int, int]] = []
+    # A string that is the first statement of a module, class or def is documentation for
+    # people: it goes with the comments, not with the prompt-like literals.
+    module_first, line_first, at_start = True, "", True
+    expect_doc = saw_indent = False
     try:
         for tok in tokenize.generate_tokens(StringIO(text).readline):
+            if tok.type == tokenize.NEWLINE:
+                expect_doc, saw_indent, at_start = line_first in ("def", "class", "async"), False, True
+                continue
+            if tok.type == tokenize.INDENT:
+                saw_indent = expect_doc
+                continue
+            if tok.type in (tokenize.NL, tokenize.DEDENT, tokenize.ENCODING):
+                continue
             if tok.type not in (tokenize.STRING, tokenize.COMMENT):
+                if at_start:
+                    line_first, at_start = tok.string, False
+                expect_doc = saw_indent = module_first = False
                 continue
             s = starts[tok.start[0] - 1] + tok.start[1]
             e = starts[tok.end[0] - 1] + tok.end[1]
             if tok.type == tokenize.COMMENT:
                 comments.append((s, e))
-            else:
-                pieces.append(Piece(s, e, "py"))
+                continue
+            if module_first or (expect_doc and saw_indent):
+                comments.append((s, e))
+                module_first = expect_doc = saw_indent = False
+                at_start = False
+                continue
+            if at_start:
+                line_first, at_start = "", False
+            module_first = expect_doc = saw_indent = False
+            pieces.append(Piece(s, e, "py"))
     except (tokenize.TokenError, IndentationError, SyntaxError, IndexError):
         pass
     return pieces, comments
@@ -238,10 +267,29 @@ class FileText:
 
 
 CODEY = re.compile(r"[{};=()<>\[\]]")
+SHELL_LINE = re.compile(
+    r"(?m)^[ \t]*(?:local[ \t]+\w|\w+=\S|\w+\(\)[ \t]*\{|if[ \t]+\[|fi[ \t]*$|then[ \t]*$|else[ \t]*$|esac[ \t]*$|"
+    r"done[ \t]*$|case[ \t]|for[ \t]+\w+[ \t]+in[ \t]|compgen\b|complete[ \t]+-|compdef\b|export[ \t]+\w+=|\[\[|"
+    r"\$\{|\$\w+[ \t]*=|function[ \t]+[\w:-]+|Register-ArgumentCompleter|\}[ \t]*$|set[ \t]+-\w|end[ \t]*$|"
+    r"echo[ \t]|complete[ \t]|commandline\b)")
+FORMAT_SLOT = re.compile(r"%\[\d+\][sdqv]|\{\{-?[ \t]*[.\w]")
+
+
+def is_shell_or_template(joined: str) -> bool:
+    """An embedded shell script or template (a CLI's completion scripts): not instructions."""
+    if joined.lstrip().startswith("#!"):
+        return True
+    lines = joined.count("\n") + 1
+    hits = len(SHELL_LINE.findall(joined))
+    if len(FORMAT_SLOT.findall(joined)) >= 5 and hits >= 3:
+        return True  # a printf or text/template body around script lines
+    return hits >= 6 and hits * 5 >= lines
 
 
 def is_prompt_like(joined: str) -> bool:
     if len(joined) < 120:
+        return False
+    if is_shell_or_template(joined):
         return False
     if len(CODEY.findall(joined)) > 0.08 * len(joined) and not re.search(r"\bYou are\b|<system-reminder>", joined):
         return False  # an embedded script or shader, not instructions
@@ -385,6 +433,89 @@ def model_version(m: re.Match) -> tuple[str, tuple[int, int]]:
 
 # ----------------------------------------------------------------------- scan
 
+# ---------------------------------------------------------------- agent signals
+
+MANIFESTS = {"package.json": "npm", "pyproject.toml": "toml-py", "Pipfile": "toml-py", "setup.cfg": "cfg",
+             "setup.py": "setup-py", "go.mod": "go", "Cargo.toml": "toml-rs", "Gemfile": "ruby", "*.gemspec": "ruby"}
+JS_SDK = re.compile(r"^(anthropic|openai|ai|langchain|llamaindex|ollama|groq-sdk|cohere-ai|litellm|@google/genai|"
+                    r"@google/generative-ai|@anthropic-ai/.+|@modelcontextprotocol/.+|@ai-sdk/.+|@langchain/.+|"
+                    r"@llamaindex/.+|@openai/.+|@mistralai/.+|@mastra/.+|@openrouter/.+)$")
+PY_SDK = re.compile(r"^(anthropic|openai|langchain|langchain-.+|langgraph|langgraph-.+|llama-index|llama-index-.+|"
+                    r"llamaindex|google-genai|google-generativeai|google-adk|ollama|mcp|fastmcp|litellm|"
+                    r"claude-agent-sdk|claude-code-sdk|openai-agents|pydantic-ai|pydantic-ai-slim|crewai|smolagents|"
+                    r"pyautogen|autogen-agentchat|mistralai|cohere|groq|instructor)$")
+GO_SDK = ("anthropics/anthropic-sdk-go", "liushuangls/go-anthropic", "sashabaranov/go-openai", "openai/openai-go",
+          "modelcontextprotocol/", "mark3labs/mcp-go", "tmc/langchaingo", "google/generative-ai-go",
+          "googleapis/go-genai", "ollama/ollama", "cloudwego/eino", "firebase/genkit")
+RS_SDK = {"async-openai", "anthropic", "rmcp", "genai", "ollama-rs", "langchain-rust", "rig-core", "misanthropy"}
+RB_SDK = {"ruby-openai", "anthropic", "ruby-anthropic", "ruby_llm", "langchainrb", "mcp", "openai"}
+QUOTED = re.compile(r"""["']\s*([A-Za-z0-9][A-Za-z0-9._-]*)\s*(?:\[[^\]]*\])?\s*(?:[<>=!~;@ ,]|["'])""")
+
+
+def toml_dependencies(text: str) -> list[str]:
+    """Dependency names from pyproject.toml, Pipfile or Cargo.toml: keys of a *dependencies table and the
+    strings in a dependencies array (keywords and descriptions are not dependencies)."""
+    out: list[str] = []
+    section, in_array = "", False
+    for line in text.splitlines():
+        s = line.strip()
+        if in_array:
+            out += QUOTED.findall(s)
+            in_array = "]" not in s
+            continue
+        if s.startswith("["):
+            if not s.startswith("[["):
+                section = s.strip("[] \t").lower()
+            continue
+        key = re.match(r"""^["']?([A-Za-z0-9._-]+)["']?\s*=\s*(.*)$""", s)
+        if not key:
+            continue
+        name, rest = key.group(1), key.group(2)
+        if "dependenc" in section and not rest.startswith("["):
+            out.append(name)
+        elif rest.startswith("[") and ("dependenc" in section or re.search(r"dependenc|requires", name)):
+            out += QUOTED.findall(rest[1:])
+            in_array = "]" not in rest
+    return out
+
+
+def manifest_dependencies(kind: str, text: str) -> list[str]:
+    if kind == "npm":
+        try:
+            data = json.loads(text)
+        except ValueError:
+            return []
+        return [n for field in ("dependencies", "devDependencies", "peerDependencies", "optionalDependencies")
+                for n in (data.get(field) or {}) if isinstance(data.get(field), dict)]
+    if kind == "pip":
+        return [m.group(1) for line in text.splitlines() if (m := re.match(r"^\s*([A-Za-z0-9][A-Za-z0-9._-]*)", line))
+                and not line.lstrip().startswith(("-", "#"))]
+    if kind in ("toml-py", "toml-rs"):
+        return toml_dependencies(text)
+    if kind == "cfg":
+        m = re.search(r"(?ms)^install_requires\s*=(.*?)(?=^\S)", text)
+        return [x.group(1) for x in re.finditer(r"(?m)^\s*([A-Za-z0-9][A-Za-z0-9._-]*)", m.group(1))] if m else []
+    if kind == "setup-py":
+        return QUOTED.findall(text)
+    if kind == "go":
+        return re.findall(r"(?m)^\s*(?:require\s+)?([\w.-]+\.[\w.-]+/[\w./-]+)\s+v", text)
+    if kind == "ruby":
+        return re.findall(r"""(?m)^\s*(?:gem|\w+\.add(?:_runtime|_development)?_dependency)\s*\(?\s*["']([\w.-]+)["']""", text)
+    return []
+
+
+def agent_dependency(kind: str, name: str) -> bool:
+    if kind == "npm":
+        return bool(JS_SDK.match(name))
+    if kind in ("pip", "toml-py", "cfg", "setup-py"):
+        return bool(PY_SDK.match(re.sub(r"[._]+", "-", name.lower())))
+    if kind == "go":
+        return any(g in name for g in GO_SDK)
+    if kind == "toml-rs":
+        return name in RS_SDK
+    return name in RB_SDK
+
+
 class Scan:
     def __init__(self, root: str):
         self.root = root
@@ -445,8 +576,54 @@ class Scan:
                     if len(phrase.split()) <= 3 and phrase not in ("the", "and", "you"):
                         self.banned.setdefault(phrase, set()).add(path)
 
+    # -- does this repo ship an agent at all
+    def dependency_signals(self) -> list[str]:
+        out: list[str] = []
+        for path in self.repo.files:
+            base = os.path.basename(path)
+            kind = MANIFESTS.get(base) or (MANIFESTS.get("*" + os.path.splitext(base)[1]) if "." in base else None)
+            if base.startswith("requirements") and base.endswith((".txt", ".in")):
+                kind = "pip"
+            if not kind or is_vendored(path, self.vroots) or TESTISH.search(path):
+                continue
+            text = self.read(path)
+            if text is None:
+                continue
+            for name in manifest_dependencies(kind, text):
+                if agent_dependency(kind, name):
+                    out.append(f"{path}: {name}")
+                    break
+        return out
+
+    def preharvest_registrations(self):
+        """The cheap half of the main pass: only the tool and server registrations."""
+        for path in self.repo.files:
+            ext = os.path.splitext(path)[1].lower()
+            if ext not in JS_EXT and ext not in PY_EXT or is_vendored(path, self.vroots) \
+                    or TESTISH.search(path) or GENERATED.search(path):
+                continue
+            text = self.read(path)
+            if text is not None and ("ool" in text or "erver" in text or "FastMCP" in text):
+                self.harvest_registrations(path, text)
+
+    def agent_signals(self) -> list[str]:
+        signals = self.dependency_signals()
+        signals += [f"shipped skill: {p}" for p in self.repo.files
+                    if os.path.basename(p) == "SKILL.md" and not is_vendored(p, self.vroots) and not TESTISH.search(p)][:3]
+        if not signals:
+            self.preharvest_registrations()
+            if self.registered:
+                signals.append(f"tool registration: {sorted(self.registered)[0]}")
+            elif self.servers:
+                signals.append(f"MCP server registration: {sorted(self.servers)[0]}")
+        return signals
+
     # -- the main pass
     def run(self):
+        self.signals = self.agent_signals()
+        self.agent_code = bool(self.signals)
+        if not self.agent_code:
+            return
         self.pool = ThreadPoolExecutor(max_workers=3)
         self.model_rows = self.pool.submit(
             self.grep, [r"claude-(opus|sonnet|haiku|fable|[0-9])|gpt-[0-9]"], fixed=False, words_only=False,
@@ -965,6 +1142,11 @@ def scan(root: str) -> dict:
     t0 = time.time()
     s = Scan(root)
     s.run()
+    if not s.agent_code:
+        return {"repo": root, "agent_code": False, "tracked_files": len(s.repo.files),
+                "vendored_files_skipped": 0, "seconds": round(time.time() - t0, 1),
+                "note": "no agent code found: no LLM or agent SDK dependency, no tool registration, no shipped SKILL.md",
+                "counts": {}, "findings": []}
     s.prefetch()
     s.resolve_breadcrumbs()
     s.resolve_tools()
@@ -982,6 +1164,8 @@ def scan(root: str) -> dict:
     counts = Counter(f["check"] for f in s.findings)
     return {
         "repo": root,
+        "agent_code": True,
+        "agent_signals": s.signals[:6],
         "tracked_files": len(s.repo.files),
         "vendored_files_skipped": s.skipped_vendored,
         "seconds": round(time.time() - t0, 1),
@@ -1021,7 +1205,12 @@ def main() -> None:
     if emit_json(result):
         return
     show_all = "--all" in sys.argv
+    if not result["agent_code"]:
+        print(f"repo: {result['repo']}  tracked files: {result['tracked_files']}  ({result['seconds']}s)")
+        print(result["note"])
+        return
     ps, rg = result["prompt_surfaces"], result["registries"]
+    print("agent code: " + "; ".join(result["agent_signals"][:3]))
     print(f"repo: {result['repo']}  tracked files: {result['tracked_files']}  vendored skipped: "
           f"{result['vendored_files_skipped']}  ({result['seconds']}s)")
     print(f"agent-steering text in code: {ps['prompt_like_literals']} prompt-like literals, {ps['descriptions']} descriptions, "

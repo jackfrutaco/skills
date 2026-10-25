@@ -62,6 +62,10 @@ def n(x) -> int:
 
 
 def test_lines(ts: dict) -> list[str]:
+    if ts.get("mostly_unchecked"):
+        lang = ts.get("main_language") or "this repo's language"
+        return [f"UNCHECKED for {lang} (the import graph reads JS/TS only): modules only tests import, "
+                "test source-text pins, orphan fixtures and dormant test gates were not looked for"]
     mods = ts.get("test_only_modules") or []
     pins = ts.get("source_text_pins") or {}
     gate = pins.get("gate")
@@ -69,13 +73,17 @@ def test_lines(ts: dict) -> list[str]:
     pin_text = (f"source-text pins: the repo's own gate holds {gate.get('baseline_entries')} in its baseline, "
                 f"{len(gate.get('found_by_this_scan_not_in_baseline') or [])} outside it" if gate
                 else f"tests pinning source text {pins.get('files_found', 0)}")
-    return [
+    lines = [
         f"modules only tests import {sum(1 for m in mods if m.get('kind') == 'test-only')}, imported by nothing "
         f"{sum(1 for m in mods if m.get('kind') == 'unreachable')}; test support living in src "
         f"{len(ts.get('test_support_in_src') or [])}",
         f"{pin_text}; fixtures nothing loads {len(ts.get('orphan_fixtures') or [])}; "
         f"tests gated on a switch nothing sets {len(env.get('dormant') or [])}",
     ]
+    other = ts.get("unchecked_languages") or {}
+    if other:
+        lines.append("not read by the import graph: " + ", ".join(f"{lang} {n} files" for lang, n in list(other.items())[:3]))
+    return lines
 
 
 def memory_lines(ah: dict) -> list[str]:
@@ -185,7 +193,10 @@ def card(out: str, ran: set[str]) -> list[tuple[str, list[str]]]:
         if cites:
             lines.append(f"pointers at a section that's gone, or at an instruction file that is now only an import: "
                          f"{len(cites)} (in code comments {sum(1 for x in cites if x['kind'] == 'code')})")
-        if ps and ps.get("findings") is not None:
+        if ps and ps.get("agent_code") is False:
+            lines.append("runtime prompts and tool descriptions in code: no agent code found "
+                         "(no LLM or agent SDK dependency, tool registration or shipped SKILL.md)")
+        elif ps and ps.get("findings") is not None:
             c = ps.get("counts") or {}
             if ps["findings"]:
                 lines.append(f"runtime prompts and tool descriptions in code: {len(ps['findings'])} findings ("

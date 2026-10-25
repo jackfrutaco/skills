@@ -20,7 +20,8 @@ from collections import defaultdict
 
 sys.dont_write_bytecode = True  # keep the installed skill folder clean
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from steering_refs import emit_json, git  # noqa: E402
+from steering_refs import SAMPLE_PATH, emit_json, git  # noqa: E402
+from fingerprint import last_fetch_date, nox_sessions, tox_envs  # noqa: E402
 
 
 def run(cmd: list[str], cwd: str, timeout: int = 60) -> tuple[int, str]:
@@ -82,6 +83,7 @@ def branches(root: str, base: str | None) -> dict:
     return {"local": len(local), "merged_into_base": len(merged - {base.split("/")[-1] if base else ""}),
             "no_commits_90d": len(stale), "worktrees": worktrees, "prunable_worktrees": prunable,
             "upstream_gone": gone, "remote_merged_into_base": len(remote_merged),
+            "remote_refs": f"as of the last fetch, {fetched}" if (fetched := last_fetch_date(root)) else "local refs, never fetched",
             "note": "--merged misses squash merges; check PR state before deleting"}
 
 
@@ -228,6 +230,14 @@ def agent_load(root: str) -> dict:
 
 def timing_suggestions(root: str) -> list[str]:
     files = set(git(root, "ls-files").splitlines())
+    own = [f for f in files if not SAMPLE_PATH.search(f)]
+
+    def read(path: str) -> str:
+        try:
+            return open(os.path.join(root, path), encoding="utf-8", errors="replace").read()
+        except OSError:
+            return ""
+
     s = []
     if "package.json" in files:
         try:
@@ -241,13 +251,42 @@ def timing_suggestions(root: str) -> list[str]:
                 s.append(f"{pm} run {name}")
         if "tsconfig.json" in files:
             s.append("npx tsc --noEmit --extendedDiagnostics   # check time per phase")
+    # Name a test runner only when a package.json depends on it.
+    deps: set[str] = set()
+    for f in own:
+        if os.path.basename(f) == "package.json" and "node_modules/" not in f:
+            try:
+                data = json.loads(read(f))
+            except ValueError:
+                continue
+            for field in ("dependencies", "devDependencies", "optionalDependencies"):
+                deps.update((data.get(field) or {}))
+    if "vitest" in deps:
         s.append("vitest run --reporter=json --outputFile=/tmp/vitest.json   # then sort by duration")
-    if "pyproject.toml" in files or any(f.endswith("requirements.txt") for f in files):
-        s.append("pytest --durations=20 -q")
+    if "jest" in deps:
+        s.append("jest --json --outputFile=/tmp/jest.json   # then sort testResults by duration")
+    python = any(f in files for f in ("pyproject.toml", "setup.py", "tox.ini", "noxfile.py")) or \
+        any(f.endswith("requirements.txt") for f in files)
+    if python:
+        envs = tox_envs(read("tox.ini")) if "tox.ini" in files else []
+        sessions = nox_sessions(read("noxfile.py")) if "noxfile.py" in files else []
+        pick = lambda names: next((n for n in names if not re.search(r"doc|lint|style|type|mypy|format|fmt", n)), names[0])  # noqa: E731
+        if envs:
+            s.append(f"tox -e {pick(envs)}   # tox.ini defines: {', '.join(envs[:8])}")
+        elif sessions:
+            s.append(f"nox -s {pick(sessions)}   # noxfile.py defines: {', '.join(sessions[:8])}")
+        elif "tests/runtests.py" in files or "runtests.py" in files:
+            s.append(f"python {'tests/runtests.py' if 'tests/runtests.py' in files else 'runtests.py'}"
+                     "   # the project's own test runner; its --parallel and --timing flags show where time goes")
+        else:
+            s.append("pytest --durations=20 -q")
     if "go.mod" in files:
-        s.append("go test -json ./... | gotestsum tool slowest   # or: go test ./... -v and sort")
+        s.append("go test ./...   # add -v and sort the elapsed times")
     if "Cargo.toml" in files:
+        s.append("cargo test")
         s.append("cargo build --timings   # writes target/cargo-timings/")
+    if "Rakefile" in files or "rakefile" in files:
+        s.append("bundle exec rake")
     if any(f.endswith(("build.gradle", "build.gradle.kts")) for f in files):
         s.append("./gradlew build --profile")
     if "mix.exs" in files:
@@ -300,7 +339,7 @@ def main() -> None:
     if b:
         print(f"branches: {b['local']} local, {b['merged_into_base']} merged into {default}, "
               f"{b['no_commits_90d']} untouched 90+ days, {len(b['upstream_gone'])} with upstream gone; "
-              f"remote branches merged into base {b['remote_merged_into_base']}; "
+              f"remote branches merged into base {b['remote_merged_into_base']} ({b['remote_refs']}); "
               f"worktrees {b['worktrees']} ({b['prunable_worktrees']} prunable)")
     print("hooks:")
     for h in r["hooks"] or [{"hook": "none", "runs": []}]:

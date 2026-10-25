@@ -330,6 +330,8 @@ def main() -> None:
         shutil.rmtree(root, ignore_errors=True)
 
     failures += prompt_surfaces_failures()
+    failures += cruft_precision_failures()
+    failures += steering_precision_failures()
 
     if failures:
         print("FAIL")
@@ -408,6 +410,262 @@ def prompt_surfaces_failures() -> list[str]:
         skill = {t for c, f, t in found if c == "skill_hygiene" and f == "skills/helper/SKILL.md"}
         check("../../docs/guide.md" in skill and "development checkout" in skill, "shipped skill link out of its folder and dev wording")
         check("references/more.md" not in skill, "shipped skill link inside its folder is fine")
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+    return failures
+
+
+def cruft_precision_failures() -> list[str]:
+    """Precision of cruft_scan, test_scan and prompt_surfaces outside the JS stack: planted
+    look-alikes that earlier produced false findings on flask, django, cobra, ripgrep and sinatra."""
+    failures: list[str] = []
+
+    def check(cond: bool, what: str) -> None:
+        if not cond:
+            failures.append("precision: " + what)
+
+    def repo(files: dict[str, str]) -> str:
+        root = tempfile.mkdtemp(prefix="cobweb-precision-")
+        sh(root, "git", "init", "-q", "-b", "main")
+        sh(root, "git", "config", "user.email", "t@example.com")
+        sh(root, "git", "config", "user.name", "t")
+        for path, text in files.items():
+            write(root, path, text)
+        sh(root, "git", "add", "-A")
+        sh(root, "git", "commit", "-q", "-m", "init")
+        return root
+
+    def script(name: str, root: str, *extra: str) -> dict:
+        out = subprocess.run([sys.executable, "-I", os.path.join(SCRIPTS, name), root, "--json", *extra],
+                             capture_output=True, text=True, check=True).stdout
+        return json.loads(out)
+
+    roots: list[str] = []
+    try:
+        # 1. escape hatches: scoped to their languages, no \b (Apple's git grep -E ignores it)
+        sys.path.insert(0, SCRIPTS)
+        try:
+            import cruft_scan
+            patterns = [p for parts in cruft_scan.ESCAPES.values() for p, _ in parts]
+        finally:
+            sys.path.remove(SCRIPTS)
+        check(patterns and not any("\\b" in p or "\\s" in p for p in patterns),
+              "escape patterns use no \\b or \\s (they differ between Apple's git grep and GNU's)")
+        r = repo({
+            "src/a.ts": "const x = y as any\nfunction f(v: any) {}\n// takes values as any of the following\n"
+                        "// @ts-ignore\ntry { go() } catch {}\n",
+            "src/doc.py": '"""Accepts values as any thing; the word noqa is prose here."""\n'
+                          "x = 1  # noqa\ntry:\n    pass\nexcept ValueError: pass\n",
+            "src/b.ts": "// # noqa and //nolint are not TypeScript escapes\n",
+            "main.go": "package main\n\nfunc a() {} //nolint:errcheck\n",
+        })
+        roots.append(r)
+        rows = {x["kind"]: x for x in script("cruft_scan.py", r, "--only=escape_hatches")["escape_hatches"]["rows"]}
+        check(rows.get("as-any", {}).get("now") == 2, "as any counts code in .ts only, not prose in comments or .py docstrings")
+        check(rows.get("ts-ignore", {}).get("now") == 1, "@ts-ignore counts in .ts")
+        check(rows.get("noqa/type-ignore", {}).get("now") == 1 and
+              rows["noqa/type-ignore"]["top_files"] == ["src/doc.py (1)"], "noqa counts in .py only")
+        check(rows.get("nolint", {}).get("now") == 1, "//nolint counts in .go only")
+        check(rows.get("empty-catch", {}).get("now") == 2, "empty catch is found in .ts and .py with POSIX classes")
+
+        # 2. parallel implementations: a version series is not a copy; release notes are history
+        r = repo({
+            "docs/releases/1.0.txt": "a\n", "docs/releases/1.0.2.txt": "b\n",
+            "notes/2.0.txt": "a\n", "notes/2.0.1.txt": "b\n",
+            "src/util.ts": "export {}\n", "src/util.old.ts": "export {}\n",
+            "src/handler.ts": "export {}\n", "src/handler-v2.ts": "export {}\n",
+        })
+        roots.append(r)
+        par = script("cruft_scan.py", r, "--only=parallel")["parallel"]
+        check({p["file"] for p in par} == {"src/util.old.ts", "src/handler-v2.ts"},
+              "parallel: only real copies, not 1.0.2.txt beside 1.0.txt")
+
+        # 3. orphan docs: toctree entries, :doc:, :ref: labels, :orphan:, tests and community files
+        r = repo({
+            "docs/index.rst": "Welcome\n=======\n\n.. toctree::\n   :maxdepth: 2\n\n   utils\n   Tutorial <tutorial/index>\n\n"
+                              "See :doc:`api` too.\n",
+            "docs/utils.rst": "Utils\n=====\n\nThe :ref:`the-label` page.\n",
+            "docs/api.rst": "API\n===\n",
+            "docs/tutorial/index.rst": "Tutorial\n========\n\n.. toctree::\n\n   layout\n",
+            "docs/tutorial/layout.rst": "Layout\n======\n",
+            "docs/labelled.rst": ".. _the-label:\n\nLabelled\n========\n",
+            "docs/deliberate.rst": ":orphan:\n\nNot in a toctree\n================\n",
+            "docs/lonely.rst": "Lonely\n======\n\nNothing links here.\n",
+            "tests/docs/sample.md": "# fixture\n",
+            "CODE_OF_CONDUCT.rst": "Conduct\n",
+            "docs/CONDUCT.md": "Conduct\n",
+        })
+        roots.append(r)
+        orphans = {x["file"] for x in script("cruft_scan.py", r, "--only=orphan_docs")["orphan_docs"]}
+        check(orphans == {"docs/lonely.rst"},
+              f"orphan docs: toctree, :doc:, :ref:, :orphan:, tests and community files are not orphans (got {sorted(orphans)})")
+
+        # 6. test_scan: honest coverage, skip guards in every language the repo's tests use
+        r = repo({
+            "pkg/__init__.py": "", "pkg/core.py": "def run():\n    return 1\n",
+            "tests/test_core.py": "import pytest\nneeds_db = pytest.mark.skipif(True, reason='x')\n\n"
+                                  "@pytest.mark.skip\ndef test_a():\n    pass\n",
+            "calc/calc.go": "package calc\n", "calc/calc_test.go": 'package calc\n\nfunc TestA(t *testing.T) {\n\tt.Skip("x")\n'
+                                                                  '\tt.Skipf("y")\n}\n',
+            "tests/it.rs": "#[test]\n#[ignore]\nfn slow() {}\n",
+            "src/lib.rs": "pub fn a() {}\n#[cfg(test)]\nmod t {\n    #[test]\n    #[ignore]\n    fn b() {}\n}\n",
+        })
+        roots.append(r)
+        ts = script("test_scan.py", r)
+        sg = ts["skip_guards"]
+        check(sg["counts"].get("pytest.skipif") == 1 and sg["counts"].get("pytest.skip") == 1,
+              "skip guards: pytest.mark.skipif without an @, and @pytest.mark.skip")
+        check(sg["counts"].get("go.Skip") == 2 and sg["counts"].get("rust.ignore") == 2, "skip guards: Go t.Skip and Rust #[ignore]")
+        check(sg["test_files"] == 4 and sg["test_files_by_language"] == {"Rust": 2, "Python": 1, "Go": 1},
+              f"skip guards: Go _test.go, Rust tests/*.rs and #[cfg(test)] files are test files (got {sg['test_files_by_language']})")
+        check(ts["analysed_languages"] == [] and ts["mostly_unchecked"] and "Python" in ts["code_files_by_language"]
+              and ts["main_language"] in ("Python", "Rust"), "test_scan says the import graph did not read a non-JS repo")
+        sys.path.insert(0, SCRIPTS)
+        try:
+            import sweep
+            line = sweep.test_lines(ts)[0]
+        finally:
+            sys.path.remove(SCRIPTS)
+        check(line.startswith("UNCHECKED for ") and "(the import graph reads JS/TS only)" in line,
+              "health card prints UNCHECKED, not 0, for a repo in a language the graph skips")
+
+        # 7. prompt_surfaces: silent without agent signals; docstrings and shell templates are not prompts
+        shell = "`# bash completion for %[1]s\n" + "".join(
+            f"__%[1]s_step{i}()\n{{\n    local file=\"$FILE\"\n    if [[ -n ${{file}} ]]; then\n        echo \"$*\" >> \"${{file}}\"\n    fi\n}}\n"
+            for i in range(3)) + "`"
+        docstring = ('"""You MUST never call `update_things` before `sync_all`. Never mind: the tool `sync_all` is described '
+                     'here as prose for people who read the source of this module and nobody else at all."""\n')
+        plain = {"app/main.py": docstring + "def go():\n    return 1\n",
+                 "cmd/completion.go": "package cmd\n\nconst tpl = " + shell + "\n"}
+        r = repo(plain)
+        roots.append(r)
+        res = script("prompt_surfaces.py", r)
+        check(res.get("agent_code") is False and not res["findings"], "no agent signal: prompt_surfaces reports agent_code false and nothing else")
+        r = repo({**plain, "pyproject.toml": '[project]\nname = "x"\nkeywords = ["ai", "mcp"]\ndependencies = [\n  "anthropic>=0.30",\n]\n',
+                  "app/prompts.py": 'PROMPT = """You are the helper. You MUST call `fetch_ledger` first and never guess a balance."""\n'})
+        roots.append(r)
+        res = script("prompt_surfaces.py", r)
+        tokens = {f["token"] for f in res["findings"] if f["check"] == "orphan_tool"}
+        check(res.get("agent_code") is True, "an LLM SDK dependency opens the scan")
+        check("fetch_ledger" in tokens and not tokens & {"update_things", "sync_all"},
+              f"a prompt literal is read, a docstring in the same repo is not (orphan tools {sorted(tokens)})")
+        check(all(f["file"] != "cmd/completion.go" for f in res["prompt_surfaces"]["largest_files"]),
+              "a shell completion template is not a prompt")
+        r = repo({"package.json": '{"name": "x", "keywords": ["ai"], "dependencies": {"left-pad": "1"}}\n', "a.js": "export const a = 1\n"})
+        roots.append(r)
+        check(script("prompt_surfaces.py", r).get("agent_code") is False, "the keyword 'ai' is not the ai package")
+        r = repo({"package.json": '{"name": "x", "dependencies": {"ai": "^4"}}\n'})
+        roots.append(r)
+        check(script("prompt_surfaces.py", r).get("agent_code") is True, "the ai package opens the scan")
+        r = repo({"skills/helper/SKILL.md": "# Helper\n\nDo the thing.\n"})
+        roots.append(r)
+        check(script("prompt_surfaces.py", r).get("agent_code") is True, "a shipped SKILL.md opens the scan")
+    finally:
+        for d in roots:
+            shutil.rmtree(d, ignore_errors=True)
+    return failures
+
+
+
+def steering_precision_failures() -> list[str]:
+    """Docs that describe the reader's project, prose that sounds like a command,
+    release notes, HTML anchors and common words: planted look-alikes beside real cobwebs."""
+    root = tempfile.mkdtemp(prefix="cobweb-precision-")
+    failures: list[str] = []
+
+    def check(cond: bool, what: str) -> None:
+        if not cond:
+            failures.append("steering_precision: " + what)
+
+    try:
+        sh(root, "git", "init", "-q", "-b", "main")
+        sh(root, "git", "config", "user.email", "t@example.com")
+        sh(root, "git", "config", "user.name", "t")
+        write(root, "docs/Makefile", "html:\n\t@echo html\n\ncheck:\n\t@echo check\n")
+        write(root, "scripts/run.sh", "echo run\n")
+        write(root, "tools/scripts/moved.sh", "echo moved\n")
+        write(root, "src/gone.ts", "export const gone = 1\n")
+        write(root, "old-name.md", "# old\n")
+        write(root, "pkg/other/helper.html", "<p>x</p>\n")
+        write(root, "examples/proj/tests/sample.py", "x = 1\n")
+        write(root, "tests/fixtures/app/Procfile", "web: run\n")
+        write(root, "package.json", '{"name": "p", "scripts": {"build": "echo build"}}\n')
+        write(root, "FAQ.md", '# FAQ\n\n<h3 name="complete">\n\n<a name="other"></a>\n\n<div id="byid">x</div>\n\n## Real heading\n')
+        write(root, "docs/links.md", "[a](../FAQ.md#complete) [b](../FAQ.md#other) [c](../FAQ.md#byid) "
+                                     "[d](../FAQ.md#real-heading) [e](../FAQ.md#nothere)\n")
+        # Fix 1: RST text between two literals is not a span; commands count only as code.
+        write(root, "docs/howto.rst",
+              "Setup\n=====\n\n"
+              "Run ``pip`` and make sure ``tox`` passes, then make sure the docs build.\n"
+              "You can make nothing here, and a ` make sure ` pair is stray ticks.\n\n"
+              "Use ``make html`` for docs and ``make bogus`` for nothing.\n\n"
+              "Heading\n~~~~~~~\n\n"
+              "Build::\n\n    make check\n    make gone_target\n    make sure it works\n\n"
+              ".. code-block:: console\n    :linenos:\n\n    $ make gone_console\n\n"
+              "After the block, make sure_prose_not_code again.\n")
+        write(root, "docs/howto.md", "Please make sure `a` and make sure `b` exist, then `make html`.\n\n"
+                                     "    make gone_indented\n")
+        # Fix 2: a tutorial that walks through the reader's project.
+        write(root, "docs/tutorial.md",
+              "Create `polls/models.py` and `mysite/settings.py`, serve `./public`, add `favicon.ico`.\n"
+              "Edit `scripts/missing.sh`, `src/gone.ts`, `old-name.md`, `helper.html`.\n"
+              "Copy `tests/sample.py` and run `scripts/moved.sh`.\n")
+        write(root, "AGENTS.md", "# Rules\n\nSee `polls/models.py` and `favicon.ico` before editing.\n"
+                                  "The widget is `OldWidget`. Check the Site, homepage, Sphinx and True setup.\n")
+        # Fix 3: release notes and changelogs are records.
+        for rel in ("docs/releases/1.0.txt", "docs/release-notes/2.md", "NEWS.md", "docs/changelog/x.md", "CHANGES.rst",
+                    "docs/whatsnew/3.rst"):
+            write(root, rel, "Fixed `scripts/missing_history.sh` and removed `OldGadget` and `scripts/gone_history.sh`.\n")
+        write(root, "docs/notes.md", "The site has a site map; each site has a homepage, a homepage again, a homepage third. "
+                                     "Build sphinx with sphinx and sphinx. Keep true as true, true.\n")
+        write(root, "legacy/a.txt", "OldWidget\nOldWidget\nOldGadget\nOldGadget\nhomepage\nhomepage\nSite\nSite\nSphinx\nSphinx\nTrue\nTrue\n")
+        sh(root, "git", "add", "-A")
+        sh(root, "git", "commit", "-q", "-m", "init")
+        sh(root, "git", "rm", "-q", "src/gone.ts", "old-name.md", "pkg/other/helper.html", "legacy/a.txt")
+        sh(root, "git", "commit", "-q", "-m",
+           'chore: remove the "homepage" and "Site" setup, the (Sphinx) shim, the True flag, `OldWidget` and `OldGadget`')
+
+        st = run("steering_refs.py", root)
+        found = {(f["doc"], f["ref"]) for f in st["findings"]}
+        refs = lambda doc: {r for d, r in found if d == doc}  # noqa: E731
+        scripts = {r for d, r in found if d.startswith("docs/howto") and r in ("sure", "the", "nothing", "html")}
+        check(not scripts, f"prose 'make sure', 'make nothing' and a real target are not flagged ({sorted(scripts)})")
+        rst = refs("docs/howto.rst")
+        check({"bogus", "gone_target", "gone_console"} <= rst, f"a bad make target in a span or code block is flagged ({sorted(rst)})")
+        check("check" not in rst and "html" not in rst and "sure_prose_not_code" not in rst and "linenos" not in rst,
+              f"a real target and prose after a block are fine ({sorted(rst)})")
+        check("gone_indented" in refs("docs/howto.md"), "an indented Markdown code block counts")
+        check(not refs("docs/howto.md") - {"gone_indented"}, f"Markdown prose around two spans is fine ({sorted(refs('docs/howto.md'))})")
+        tut = refs("docs/tutorial.md")
+        check("polls/models.py" not in tut and "mysite/settings.py" not in tut and "./public" not in tut,
+              f"a doc about the reader's project is not drift ({sorted(tut)})")
+        check("favicon.ico" not in tut and "helper.html" not in tut, "a bare filename is not drift unless it was deleted near the doc")
+        check("tests/sample.py" not in tut, "a path found only inside a sample project did not move")
+        check({"scripts/missing.sh", "src/gone.ts", "old-name.md", "scripts/moved.sh"} <= tut,
+              f"a path under the repo's own folder, a deleted path, a deleted root file and a moved path stay flagged ({sorted(tut)})")
+        agents = refs("AGENTS.md")
+        check("polls/models.py" in agents and "favicon.ico" in agents, "an always-loaded file keeps every missing path")
+        for rel in ("docs/releases/1.0.txt", "docs/release-notes/2.md", "NEWS.md", "docs/changelog/x.md", "CHANGES.rst",
+                    "docs/whatsnew/3.rst"):
+            kinds = {f["kind"] for f in st["findings"] if f["doc"] == rel}
+            check(kinds <= {"history"}, f"{rel} is a record, not a live doc (kinds {sorted(kinds)})")
+        anchors = {r for d, r in found if d == "docs/links.md"}
+        check(anchors == {'../FAQ.md "nothere"'} or anchors == {'FAQ.md "nothere"'},
+              f"HTML name/id anchors and heading slugs resolve; only the missing one is flagged ({sorted(anchors)})")
+
+        names = run("retired_names.py", root)
+        terms = {r["term"] for r in names}
+        check(not terms & {"Site", "homepage", "Sphinx", "True"}, f"common words and keywords are not retired names ({sorted(terms)})")
+        check("OldWidget" in terms, "a distinctive retired name that survives in AGENTS.md is reported")
+        check("OldGadget" not in terms, "a retired name that survives only in release notes is not reported")
+
+        fp = run("fingerprint.py", root)
+        check("heroku" not in fp["stacks"], "a Procfile in a test fixture is not a stack")
+        check("make" not in fp["stacks"], "docs/Makefile is not a make stack")
+
+        dr = run("drag.py", root)
+        check(not any("vitest" in s or "jest" in s for s in dr["timing_suggestions"]), "no vitest or jest suggestion without the dependency")
+        check(dr["branches"].get("remote_refs") == "local refs, never fetched", "remote branch count says the refs were never fetched")
     finally:
         shutil.rmtree(root, ignore_errors=True)
     return failures

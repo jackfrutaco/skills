@@ -53,10 +53,46 @@ Let Say Show Run Check Cut Trim Mark Record Restore Retirement Rename Readme Tod
 UI URL CLI JSON MCP CSS HTML JS TS Node Git GitHub Main Branch Tab Project File Files Code
 Settings Mac I We You Our
 """.split())
+# Language keywords and literals: never a product name, whatever the casing.
+KEYWORDS = set("true false none null nil self this undefined void super".split())
+PROSE_EXTS = (".md", ".mdx", ".rst", ".txt")
 GENERIC_STEMS = set("""
 index main utils util types type helpers helper constants config test tests spec mod lib
 common shared core base app page layout styles style readme changelog license package
 """.split())
+
+
+def is_common_word(term: str, common_words: set[str]) -> bool:
+    """A single plain word (no digit, hyphen, underscore, dot or inner capital)
+    that is ordinary prose in this repo, or a language keyword: "Site", "True"."""
+    if " " in term:
+        return False
+    if term.lower() in KEYWORDS:
+        return True
+    if re.search(r"[\d._+/-]|[a-z][A-Z]", term):
+        return False
+    return term.lower() in common_words
+
+
+def prose_words(repo: str) -> set[str]:
+    """Lowercase words the project's own prose uses at least three times, from
+    its Markdown, reStructuredText and text docs."""
+    counts: Counter = Counter()
+    budget = 8_000_000
+    for p in git(repo, "ls-files").splitlines():
+        if not p.lower().endswith(PROSE_EXTS):
+            continue
+        try:
+            size = os.path.getsize(os.path.join(repo, p))
+            if size > 400_000:
+                continue
+            budget -= size
+            counts.update(re.findall(r"\b[a-z]{3,}\b", open(os.path.join(repo, p), encoding="utf-8", errors="replace").read()))
+        except OSError:
+            continue
+        if budget < 0:
+            break
+    return {w for w, n in counts.items() if n >= 3}
 
 
 def retirements(repo: str, since: str) -> list[tuple[str, str, str]]:
@@ -125,17 +161,17 @@ def removed_identifiers(repo: str, sha: str) -> set[str]:
 def terms_from(repo: str, sha: str, subject: str, common_words: set[str], force: bool = False) -> set[str]:
     segment = retired_segment(subject) or (re.sub(r"^\w+(\([^)]*\))?!?:\s*", "", subject) if force else "")
     terms = set()
+    in_code = set()  # `repairing`: the commit marks it as an identifier on purpose
     for m in QUOTED.finditer(segment):
         terms.add(m.group(1).strip())
+        if m.group(0)[0] == "`":
+            in_code.add(m.group(1).strip())
     for m in PAREN.finditer(segment):
         terms.add(m.group(1).strip())
     for m in CAPITAL.finditer(segment):
         word = m.group(1).strip(" -")
         parts = word.split()
         if all(w in COMMON for w in parts):
-            continue
-        # A lone capitalised English word ("Still", "Back") is not a name.
-        if len(parts) == 1 and not re.search(r"\d|[a-z][A-Z]|-", word) and word.lower() in common_words:
             continue
         if any(word in q for q in terms):
             continue
@@ -161,8 +197,10 @@ def terms_from(repo: str, sha: str, subject: str, common_words: set[str], force:
         stem = re.sub(r"\.(test|spec|stories|d)$", "", stem)
         if len(stem) >= 6 and stem.lower() not in GENERIC_STEMS and DISTINCT_STEM.search(stem):
             terms.add(stem)
-    # Names are identifiers or product words, not quoted UI strings ("now $0").
-    return {t for t in terms if len(t) >= 4 and re.fullmatch(r"[A-Za-z][\w .+/-]*", t)}
+    # Names are identifiers or product words, not quoted UI strings ("now $0"),
+    # and a lone English word ("Still", "Site", "True") names nothing however it got here.
+    return {t for t in terms if len(t) >= 4 and re.fullmatch(r"[A-Za-z][\w .+/-]*", t)
+            and not is_common_word(t, set() if t in in_code else common_words)}
 
 
 def text_files(repo: str):
@@ -186,10 +224,11 @@ def text_files(repo: str):
 
 def after_removal(repo: str, shas: list[str]) -> list[dict]:
     live_stems = {os.path.splitext(os.path.basename(p))[0].lower() for p in git(repo, "ls-files").splitlines()}
+    common_words = prose_words(repo)
     terms: dict[str, str] = {}
     for sha in shas:
         subject = git(repo, "log", "-1", "--format=%h %as %s", sha).strip()
-        found = terms_from(repo, sha, subject.split(" ", 2)[-1], set(), force=True) | removed_identifiers(repo, sha)
+        found = terms_from(repo, sha, subject.split(" ", 2)[-1], common_words, force=True) | removed_identifiers(repo, sha)
         for t in found:
             if t.lower() not in live_stems:
                 terms.setdefault(t, subject)
@@ -283,10 +322,7 @@ def main() -> None:
                   for p in git(repo, "ls-files").splitlines()}
     # Lowercase words in the project's own prose: a capitalised word that is
     # also ordinary prose here ("still", "back") is grammar, not a name.
-    prose = " ".join(open(os.path.join(repo, p), encoding="utf-8", errors="replace").read()
-                     for p in git(repo, "ls-files", "*.md").splitlines()[:400]
-                     if os.path.isfile(os.path.join(repo, p)))
-    common_words = {w for w, n in Counter(re.findall(r"\b[a-z]{3,}\b", prose)).items() if n >= 3}
+    common_words = prose_words(repo)
     seen_terms: dict[str, tuple[str, str, str]] = {}
     for sha, date, subject in retirements(repo, since):
         for term in terms_from(repo, sha, subject, common_words):

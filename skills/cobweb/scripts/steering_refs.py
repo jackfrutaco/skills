@@ -70,6 +70,10 @@ HISTORY = [
     "**/archive/**", "**/archived/**", "**/audits/**", "**/postmortems/**",
     "**/adr/**", "**/decisions/**", "CHANGELOG*", "**/CHANGELOG*", "HISTORY*",
     "**/reports/**",
+    # What shipped in each release is a record, however many docs-folder files hold it.
+    "**/releases/**", "**/release-notes/**", "**/release_notes/**", "**/changelog/**",
+    "**/changelogs/**", "**/whatsnew/**", "NEWS*", "**/NEWS*", "RELEASE*NOTES*",
+    "**/RELEASE*NOTES*", "CHANGES*", "**/CHANGES*",
 ]
 DOC_EXT = (".md", ".mdc", ".mdx", ".txt", ".rst")
 
@@ -94,14 +98,23 @@ COMPILED = {".js": (".ts", ".tsx", ".mts"), ".mjs": (".mts", ".ts"), ".cjs": (".
             ".css": (".scss", ".sass", ".less"), ".pyc": (".py",)}
 LINE_SUFFIX = re.compile(r"(#.*|:L?\d+(:\d+)?([-–]L?\d+)?)$")
 LINK = re.compile(r"!?\[[^\]]*\]\(<?([^)\s>]+)>?(?:\s+\"[^\"]*\")?\)")
-CODE_SPAN = re.compile(r"`([^`\n]{2,200})`")
+TICKS = re.compile(r"`+")
 FENCE = re.compile(r"^\s*(```|~~~)")
+# reStructuredText: a line ending in "::" opens a literal block, and a code
+# directive opens one too; both hold the indented lines that follow.
+RST_EXTS = (".rst", ".txt")
+RST_LITERAL = re.compile(r"^(?!\s*\.\.\s).*::\s*$|^\s*\.\.\s+(code-block|code|sourcecode|parsed-literal|console)::")
+RST_OPTION = re.compile(r"^\s*:[\w-]+:(\s|$)")
+LIST_ITEM = re.compile(r"^\s*([-*+]|\d+[.)])\s")
 IMPORT = re.compile(r"^@([\w./-]+)\s*$")
 RUNNER = re.compile(
     r"(?:^|[\s;&|(])(?:(npm)\s+run\s+([\w:.\-]+)"
     r"|(pnpm|yarn|bun)\s+(?:--filter\s+\S+\s+|-F\s+\S+\s+)?(?:run\s+)?([\w:.\-]+)"
     r"|(make|just|task)\s+([\w:.\-]+))"
 )
+# Prose words that follow make/just/task in a sentence, never a target.
+NOT_TARGET = {"sure", "the", "a", "an", "it", "that", "this", "any", "your", "sense", "use", "of", "in",
+              "to", "sure,", "certain", "clear", "up", "sure."}
 # Package-manager builtins, not package.json scripts.
 PM_BUILTINS = set("""
 install i add remove rm uninstall ci init create exec x dlx link unlink publish pack
@@ -109,6 +122,30 @@ update up upgrade outdated audit why info view list ls version help login logout
 cache pm run workspace workspaces global set patch rebuild dedupe prune import store
 upgrade-interactive bunx npx node test start t
 """.split())
+
+
+def code_spans(line: str) -> list[tuple[int, int, str]]:
+    """Inline code as (start, end, text). A run of N backticks closes at the next
+    run of exactly N, so RST ``a`` make sure ``b`` is two spans and the words
+    between them are prose. A single-backtick span that starts or ends with
+    whitespace is two stray ticks, not code."""
+    runs = list(TICKS.finditer(line))
+    spans, i = [], 0
+    while i < len(runs):
+        n = len(runs[i].group())
+        j = next((k for k in range(i + 1, len(runs)) if len(runs[k].group()) == n), None)
+        if j is None:
+            i += 1
+            continue
+        body = line[runs[i].end():runs[j].start()]
+        if n > 1:
+            body = body.strip()  # Markdown pads ``  ` ``; RST does not
+        if 2 <= len(body) <= 200 and (n > 1 or body == body.strip()):
+            spans.append((runs[i].start(), runs[j].end(), body))
+            i = j + 1
+        else:
+            i = j
+    return spans
 
 
 def git(repo: str, *args: str, stdin: str | None = None) -> str:
@@ -310,6 +347,33 @@ def resolve(tok: str, doc: str, repo: Repo) -> tuple[str, str | None]:
     return "missing", None
 
 
+# Top-level folders every project has: a miss under one proves nothing about
+# whether a doc about the reader's own project is describing this repo.
+GENERIC_TOPS = {"src", "tests", "test", "docs", "app", "lib"}
+
+
+# Folders that hold a sample project, fixtures or scaffolding rather than the
+# project itself: a path found there did not "move" from the repo's own tree.
+SAMPLE_PATH = re.compile(r"(^|/)(tests?|fixtures?|testdata|examples?|samples?|templates?|[^/]*_template)/")
+
+
+def belongs_here(r: dict, repo: Repo) -> bool:
+    """Prose in a human doc often walks the reader through THEIR project
+    (`polls/models.py`, `./public`). A missing path counts against the repo only
+    when git remembers it, it moved, or it sits under one of this repo's own
+    non-generic top-level folders."""
+    if r["status"] == "missing-name":
+        return False
+    if r["status"] == "moved":
+        hint = r.get("hint") or ""
+        tail = posixpath.normpath(LINE_SUFFIX.sub("", r["ref"])).lstrip("./")
+        return not (hint in repo.tracked and hint.endswith(tail) and SAMPLE_PATH.search(hint[:-len(tail)]))
+    if r["status"] != "missing":
+        return True  # deleted, untracked, other-worktree, outside-repo: evidence enough
+    first = re.sub(r"^(\.\./)+", "", posixpath.normpath(LINE_SUFFIX.sub("", r["ref"]))).split("/", 1)[0]
+    return first in repo.top and first in repo.dirs and first not in GENERIC_TOPS
+
+
 _DELETIONS: dict[str, dict[str, str]] = {}
 
 
@@ -333,18 +397,93 @@ def deleted_in(repo: Repo, path: str) -> str | None:
                     d = posixpath.dirname(d)
         _DELETIONS[repo.root] = by_path
     table = _DELETIONS[repo.root]
-    clean = posixpath.normpath(path).lstrip("./") if path not in (".", "./") else path
+    clean = re.sub(r"^(\.{1,2}/)+", "", posixpath.normpath(path)) if path not in (".", "./") else path
     return table.get(clean) or (table.get("name:" + clean) if "/" not in clean else None)
 
 
-def extract(text: str, kind: str) -> list[tuple[int, str, str]]:
+def block_lines(lines: list[str], rst: bool) -> list[bool]:
+    """Per line: is it inside a fenced block, an RST literal block, or a
+    Markdown indented code block?"""
+    flags: list[bool] = []
+    fence = False
+    opener: int | None = None   # RST: indent of the line that opened a literal block
+    started = False             # RST: saw the block's first indented line
+    in_list = md_block = False
+    prev_blank = True
+    for line in lines:
+        stripped = line.strip()
+        indent = len(line) - len(line.lstrip(" \t"))
+        if not rst and FENCE.match(line):
+            fence = not fence
+            flags.append(False)
+        elif fence:
+            flags.append(True)
+        elif rst:
+            flag = False
+            if opener is not None:
+                if not stripped:
+                    flag = started
+                elif indent > opener:
+                    # Directive options (":caption: ``x``") come before the code.
+                    if started or not RST_OPTION.match(line):
+                        started = flag = True
+                else:
+                    opener = None
+            if opener is None and RST_LITERAL.search(line):
+                opener, started = indent, False
+            flags.append(flag)
+        else:
+            if not stripped:
+                flags.append(md_block)
+            elif indent >= 4:
+                md_block = md_block or (prev_blank and not in_list)
+                flags.append(md_block)
+            else:
+                md_block = False
+                in_list = bool(LIST_ITEM.match(line))
+                flags.append(False)
+        prev_blank = not stripped
+    return flags
+
+
+def command_starts_here(code: str, start: int) -> bool:
+    """In a code block a command begins the line (after a prompt) or follows a shell joiner."""
+    before = code[:start]
+    return bool(re.fullmatch(r"\s*(?:[$%>]\s+)?", before) or re.search(r"(?:&&|\|\||[;|(])\s*$", before))
+
+
+# A bare filename like BunPtyAdapter.ts or build-cli.ts names one file; layout.html, root.go do not.
+DISTINCT_NAME = re.compile(r"[a-z][A-Z]|[a-z0-9][-_][a-z0-9]")
+
+
+def deleted_near(repo: Repo, clean: str, doc: str) -> str | None:
+    """A bare filename counts as deleted only where this doc would have looked
+    for it (its folder or an ancestor), not any file anywhere that shared the name."""
+    deleted_in(repo, "")  # build the table
+    table = _DELETIONS[repo.root]
+    base = posixpath.dirname(doc)
+    while True:
+        if hit := table.get(posixpath.normpath(posixpath.join(base, clean))):
+            return hit
+        if not base:
+            return None
+        base = posixpath.dirname(base)
+
+
+def extract(text: str, kind: str, path: str = "") -> list[tuple[int, str, str]]:
     refs = []
-    in_fence = False
-    for lineno, line in enumerate(text.splitlines(), 1):
-        if FENCE.match(line):
-            in_fence = not in_fence
+    lines = text.splitlines()
+    rst = path.lower().endswith(RST_EXTS)  # "~~~~" under a heading is not a fence there
+    blocks = block_lines(lines, rst)
+    for lineno, line in enumerate(lines, 1):
+        if not rst and FENCE.match(line):
             continue
-        prose = LINK.sub(" ", CODE_SPAN.sub(" ", line))
+        in_block = blocks[lineno - 1]
+        spans = code_spans(line)
+        prose = line
+        for a, b, _ in reversed(spans):
+            prose = prose[:a] + " " + prose[b:]
+        prose = LINK.sub(" ", prose)
         if NEGATED.search(prose):
             continue  # "there is no changes.ts", "replaced foo.ts": absence is the claim
         if kind in ("always", "scoped") and (m := IMPORT.match(line.strip())):
@@ -353,20 +492,24 @@ def extract(text: str, kind: str) -> list[tuple[int, str, str]]:
             target = m.group(1)
             if not re.match(r"^[a-z][a-z0-9+.\-]*:|^#|^/", target, re.I):
                 refs.append((lineno, "link", target))
-        spans = [line] if in_fence else CODE_SPAN.findall(line)
-        for span in spans:
-            # Fenced blocks are examples as often as claims: keep runnable
+        # A command is a claim only where it is code: an inline span or a code
+        # block. "make sure" in a sentence is English.
+        for span in [line] if in_block else [t for _, _, t in spans]:
+            # Code blocks are examples as often as claims: keep runnable
             # scripts there, drop bare path guesses.
-            if not in_fence:
+            if not in_block:
                 for tok in span.split():
                     refs.append((lineno, "path", tok.rstrip(".:,")))
             for m in RUNNER.finditer(span):
+                word = m.start() + len(m.group(0)) - len(m.group(0).lstrip(" \t;&|("))
+                if in_block and not command_starts_here(span, word):
+                    continue
                 g = m.groups()
                 if g[0]:
                     refs.append((lineno, "script:pkg", g[1]))
                 elif g[2] and g[3] not in PM_BUILTINS and g[3][0].isalpha():
                     refs.append((lineno, "script:pkg-or-bin", g[3]))
-                elif g[4]:
+                elif g[4] and g[5].lower() not in NOT_TARGET:
                     refs.append((lineno, f"script:{g[4]}", g[5]))
     return refs
 
@@ -375,6 +518,7 @@ CITE_AFTER = re.compile(  # CLAUDE.md's "Provider Parity", AGENTS.md "Verificati
     r"([\w./-]*[A-Za-z0-9_-]\.md)`?(?:'s)?\s*(?:§\s*|→\s*|>\s*|section\s+|,\s*)?[\"“]([^\"”\n]{3,60})[\"”]")
 CITE_BEFORE = re.compile(  # "Versioning Convention" in ../CLAUDE.md
     r"[\"“]([^\"”\n]{3,60})[\"”]\s+(?:section\s+)?(?:in|of|from)\s+`?([\w./-]*[A-Za-z0-9_-]\.md)\b")
+HTML_ANCHOR = re.compile(r"""<[A-Za-z][\w-]*\b[^>]*?\b(?:name|id)\s*=\s*["']([^"']+)["']""")
 ANCHOR_LINK = re.compile(r"\]\(([^)\s#]+\.md)#([^)\s]+)\)")
 MENTION = re.compile(r"(?<![\w./-])((?:\.\./|\./)*(?:[\w.-]+/)*(?:CLAUDE|AGENTS|GEMINI|CONVENTIONS|AGENT)\.md)\b")
 COMMENT_LINE = re.compile(r"^\s*(//|#|\*|/\*|<!--|--|;)")
@@ -463,6 +607,8 @@ def section_citations(repo: "Repo", root: str, include_vendored: bool, extra: se
                     continue
                 if how == "anchor":
                     heads = {slug(h) for h in re.findall(r"^#{1,6}\s+(.+?)\s*#*$", body, re.M)}
+                    # <a name="x">, <h3 name="x">, id="x": hand-written anchors count too.
+                    heads |= {a.lower() for a in HTML_ANCHOR.findall(body)}
                     ok = section.lower() in heads or not re.search(r"[a-z]", section)
                 else:
                     norm = lambda t: re.sub(r"\s+", " ", t).lower()
@@ -574,7 +720,7 @@ def scan(root: str, include_vendored: bool = False) -> dict:
         if kind == "config" or (kind != "always" and not f.lower().endswith(DOC_EXT)):
             continue
         seen = set()
-        for lineno, rtype, tok in extract(text, kind):
+        for lineno, rtype, tok in extract(text, kind, f):
             if (rtype, tok) in seen:
                 continue
             seen.add((rtype, tok))
@@ -635,8 +781,11 @@ def scan(root: str, include_vendored: bool = False) -> dict:
                 r["status"] = "untracked"
             elif here:
                 r["status"], r["hint"] = "other-worktree", f"exists untracked only in {here}"
-            elif gone := deleted_in(repo, clean):
+            elif gone := (deleted_near(repo, clean, r["doc"]) or (deleted_in(repo, clean) if DISTINCT_NAME.search(clean) else None)
+                          if r["kind"] in ("doc", "spec") and "/" not in clean else deleted_in(repo, clean)):
                 r["status"], r["hint"] = "deleted", gone
+        if r["kind"] in ("doc", "spec") and r["type"] == "path" and not belongs_here(r, repo):
+            continue
         findings.append(r)
 
     return {

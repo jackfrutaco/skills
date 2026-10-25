@@ -11,6 +11,7 @@ Sections: parallel, scratch, ignored, build_output, lockfiles, versions, plan_sp
 
 from __future__ import annotations
 
+import fnmatch
 import json
 import os
 import posixpath
@@ -56,19 +57,33 @@ ROOT_LOOSE_EXT = {".html", ".htm", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".p
                   ".log", ".csv", ".txt", ".bak", ".tmp", ".patch", ".diff"}
 DATED = re.compile(r"(19|20)\d\d[-_]?[01]\d[-_]?[0-3]\d")
 
-ESCAPES = {
-    "ts-ignore": r"@ts-ignore|@ts-nocheck",
-    "ts-expect-error": r"@ts-expect-error",
-    "as-any": r"as any\b|: any\b|<any>",
-    "eslint-disable": r"eslint-disable",
-    "biome/oxlint-ignore": r"biome-ignore|oxlint-disable",
-    "noqa/type-ignore": r"# ?noqa|# ?type: ?ignore|# ?pyright: ?ignore|# ?pragma: no cover",
-    "nolint": r"//nolint|//lint:ignore",
-    "rust-allow": r"#\[allow\(",
-    "suppress-warnings": r"@SuppressWarnings|@Suppress\(|swiftlint:disable|rubocop:disable|phpcs:ignore",
-    "skipped-tests": r"\b(it|test|describe)\.(skip|todo)\(|\bx(it|describe)\(|@pytest\.mark\.skip|"
-                     r"\bt\.Skip\(|#\[ignore\]|@Disabled|@Ignore\b|\bskip\(\s*['\"]",
-    "empty-catch": r"catch\s*(\([^)]*\))?\s*\{\s*\}|\.catch\(\s*\(\s*\)\s*=>\s*\{?\s*\}?\s*\)|except[^:]*:\s*pass\b",
+# Apple's git grep -E ignores \b, so no pattern uses it: the word edges are spelled out and the
+# same input counts the same on macOS and Linux. Each pattern is scoped to the languages it
+# belongs to; `as any` in a Python docstring is English, not an escape hatch.
+TS = (".ts", ".tsx", ".mts", ".cts")
+JS_TS = TS + (".js", ".jsx", ".mjs", ".cjs", ".vue", ".svelte", ".astro")
+NW = "[^A-Za-z0-9_]"
+ESCAPES: dict[str, list[tuple[str, tuple[str, ...]]]] = {
+    "ts-ignore": [("@ts-ignore|@ts-nocheck", TS)],
+    "ts-expect-error": [("@ts-expect-error", TS)],
+    "as-any": [(f"(^|{NW})as any([];,)}}>.|&=?:![]|$| as )|:[ ]any([];,)}}>=|&[]|$|[ ]*[=|&)])|<any>", TS)],
+    "eslint-disable": [("eslint-disable", JS_TS)],
+    "biome/oxlint-ignore": [("biome-ignore|oxlint-disable", JS_TS)],
+    "noqa/type-ignore": [("# ?noqa|# ?type: ?ignore|# ?pyright: ?ignore|# ?pragma: no cover", (".py", ".pyi"))],
+    "nolint": [("//nolint|//lint:ignore", (".go",))],
+    "rust-allow": [("#\\[allow\\(", (".rs",))],
+    "suppress-warnings": [("@SuppressWarnings|@Suppress\\(", (".java", ".kt", ".kts", ".scala")),
+                          ("swiftlint:disable", (".swift",)), ("rubocop:disable", (".rb",)),
+                          ("phpcs:ignore", (".php",))],
+    "skipped-tests": [(f"(^|{NW})(it|test|describe)\\.(skip|todo)\\(|(^|{NW})x(it|describe)\\(", JS_TS),
+                      ("pytest\\.mark\\.skip|@unittest\\.skip|(^|[^A-Za-z0-9_])skip\\([ ]*['\"]", (".py",)),
+                      (f"(^|{NW})[tb]\\.Skip(f|Now)?\\(", (".go",)),
+                      ("#\\[ignore(\\]|[ ]*=|\\()", (".rs",)),
+                      (f"@Disabled|@Ignore({NW}|$)", (".java", ".kt", ".kts", ".scala")),
+                      (f"(^|{NW})skip[( ][ ]*['\"]", (".rb", ".php"))],
+    "empty-catch": [("catch[[:space:]]*(\\([^)]*\\))?[[:space:]]*\\{[[:space:]]*\\}|"
+                     "\\.catch\\([[:space:]]*\\([[:space:]]*\\)[[:space:]]*=>[[:space:]]*\\{?[[:space:]]*\\}?[[:space:]]*\\)", JS_TS),
+                    (f"except[^:]*:[[:space:]]*pass({NW}|$)", (".py",))],
 }
 MODEL_ID = re.compile(
     r"(?<![\w.-])("
@@ -101,9 +116,20 @@ def own_files(root: str) -> list[str]:
     return [f for f in git(root, "ls-files").splitlines() if f and not is_vendored(f, extra)]
 
 
+RELEASE_HISTORY = re.compile(r"(^|/)(releases?|release-notes|changelogs?|whatsnew)/", re.I)
+
+
+def ancestors(d: str) -> list[str]:
+    """d and every folder above it, ending at the repo root ''."""
+    out = [d]
+    while out[-1]:
+        out.append(posixpath.dirname(out[-1]))
+    return out
+
+
 def is_history(path: str) -> bool:
-    """Archived or dated records: expected to be old and unlinked."""
-    return classify(path) == "history"
+    """Archived or dated records (release notes included): expected to be old and unlinked."""
+    return classify(path) == "history" or bool(RELEASE_HISTORY.search(path))
 
 
 GENERATED = re.compile(r"(\.patch|\.diff|\.min\.js|\.generated\.\w+|worker-configuration\.d\.ts|\.snap)$|"
@@ -155,6 +181,8 @@ def section_parallel(root: str, files: list[str]) -> list[dict]:
         m = PARALLEL.match(base)
         if not m or DATED.search(base) or is_history(f):
             continue  # "2026-08-11-2.md" is a second record, not a second implementation
+        if re.fullmatch(r"[-_. ]v?\d+", m.group("tag")) and m.group("stem")[-1:].isdigit():
+            continue  # "1.0.2.txt" beside "1.0.txt": a version series, not a copy
         sibling = os.path.join(d, m.group("stem") + m.group("ext"))
         if sibling in present:
             hits.append({"file": f, "sibling": sibling})
@@ -170,8 +198,9 @@ def section_parallel(root: str, files: list[str]) -> list[dict]:
 
 
 def section_scratch(root: str, files: list[str]) -> list[dict]:
-    hits = [{"file": f, "why": "scratch/backup"} for f in files if SCRATCH.search(f)]
-    hits += [{"file": f, "why": "tracked env file: may hold secrets"} for f in files if TRACKED_ENV.search(f)]
+    live = [f for f in files if not TESTISH.search(f)]  # fixtures keep backup~ and .env on purpose
+    hits = [{"file": f, "why": "scratch/backup"} for f in live if SCRATCH.search(f)]
+    hits += [{"file": f, "why": "tracked env file: may hold secrets"} for f in live if TRACKED_ENV.search(f)]
     return hits
 
 
@@ -546,12 +575,13 @@ def section_dated_piles(root: str, files: list[str]) -> list[dict]:
     return sorted(out, key=lambda x: -x["files"])[:20]
 
 
-def grep_count(root: str, pattern: str, rev: str | None = None) -> tuple[int, Counter]:
+def grep_count(root: str, pattern: str, rev: str | None = None,
+               exts: tuple[str, ...] | None = None) -> tuple[int, Counter]:
     args = ["grep", "-I", "-E", "-c", "-e", pattern]
     if rev:
         args.append(rev)
-    args += ["--", *[f"*{e}" for e in sorted(CODE_EXT - {".sh"})], ":(exclude)*.md", ":(exclude)*.lock", ":(exclude)*lock.json", ":(exclude)*lock.yaml",
-             ":(exclude)vendor/**", ":(exclude).repos/**", ":(exclude)third_party/**", ":(exclude)*.patch",
+    args += ["--", *[f"*{e}" for e in (exts or sorted(CODE_EXT - {".sh"}))], ":(exclude)*.md", ":(exclude)*.lock", ":(exclude)*lock.json", ":(exclude)*lock.yaml",
+             ":(exclude)vendor/**", ":(exclude)**/vendor/**", ":(exclude).repos/**", ":(exclude)third_party/**", ":(exclude)*.patch",
              ":(exclude)*.diff", ":(exclude)*.min.js", ":(exclude)*worker-configuration.d.ts", ":(exclude)*.snap"]
     out = git(root, *args)
     per_file = Counter()
@@ -576,11 +606,14 @@ def section_escape_hatches(root: str, files: list[str]) -> dict:
                      if ext(f) in CODE_EXT]) if then else None
     code_now = len([f for f in files if ext(f) in CODE_EXT])
     rows = []
-    for name, pattern in ESCAPES.items():
-        total, per_file = grep_count(root, pattern)
+    for name, parts in ESCAPES.items():
+        per_file: Counter = Counter()
+        for pattern, exts in parts:
+            per_file.update(grep_count(root, pattern, exts=exts)[1])
+        total = sum(per_file.values())
         if not total:
             continue
-        prior = grep_count(root, pattern, then)[0] if then else None
+        prior = sum(grep_count(root, pattern, then, exts)[0] for pattern, exts in parts) if then else None
         rows.append({"kind": name, "now": total, "90_days_ago": prior,
                      "top_files": [f"{f} ({n})" for f, n in per_file.most_common(4)]})
     return {"rows": rows, "code_files_now": code_now, "code_files_90_days_ago": code_then,
@@ -611,9 +644,14 @@ def section_todos(root: str, files: list[str], limit: int = 250) -> dict:
             "oldest": aged[:12]}
 
 
+# One space after the marker: `#   code` (two or more) is an indented doc example, not dead code.
 COMMENT_CODE = re.compile(
-    r"^\s*(//|#)\s*(const|let|var|import|export|function|def|class|if|for|while|return|await|async|"
-    r"console\.|print\(|from \S+ import|\}|\{|<\w+[ >/])")
+    r"^\s*(//|#) ?(const|let|var|import|export|function|def|class|return|await|async|"
+    r"(if|for|while)\b(?=\s*\(|.*[:{]\s*$)|console\.|print\(|from \S+ import|\}|\{)")
+COMMENT_TAG = re.compile(r"^\s*//\s?<\w+[ >/]")  # JSX or HTML in a JS-family file; in Ruby or Rust `<tt>` is doc markup
+JSX_EXT = {".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".vue", ".svelte", ".astro"}
+HASH_DIRECTIVE_EXT = {".c", ".h", ".cc", ".cpp", ".hpp", ".m", ".mm", ".cs", ".swift"}  # `#if`, `#import` are not comments
+EXAMPLE_LEAD = re.compile(r"^\s*(//|#|\*|/\*).*(@?example|e\.g\.|usage|for instance)", re.I)
 
 
 def section_commented_code(root: str, files: list[str]) -> list[dict]:
@@ -628,18 +666,23 @@ def section_commented_code(root: str, files: list[str]) -> list[dict]:
         run = blocks = longest = 0
         start = 0
         first = None
+        example = False
         for i, line in enumerate(lines, 1):
-            if COMMENT_CODE.match(line):
+            m = COMMENT_CODE.match(line)
+            if m and m.group(1) == "#" and ext(f) in HASH_DIRECTIVE_EXT:
+                m = None
+            if m or (ext(f) in JSX_EXT and COMMENT_TAG.match(line)):
                 if run == 0:
                     start = i
+                    example = i > 1 and bool(EXAMPLE_LEAD.match(lines[i - 2]))  # a doc comment's sample
                 run += 1
             else:
-                if run >= 3:
+                if run >= 3 and not example:
                     blocks += 1
                     longest = max(longest, run)
                     first = first or start
                 run = 0
-        if run >= 3:
+        if run >= 3 and not example:
             blocks += 1
             longest = max(longest, run)
             first = first or start
@@ -755,6 +798,64 @@ def mentions(root: str, names: set[str]) -> dict[str, set[str]]:
     return seen
 
 
+SPHINX_EXT = (".rst", ".txt", ".md", ".mdx")
+DOC_TARGET = re.compile(r"(?::doc:|\{doc\})`([^`]+)`")
+REF_TARGET = re.compile(r"(?::ref:|\{ref\})`([^`]+)`")
+LABEL_DEF = re.compile(r"^\.\. _([^:\n]+):", re.M)
+ANGLE = re.compile(r"<([^<>]+)>\s*$")
+TOC_LINE = re.compile(r"^[\w./*@+-]+$")
+
+
+def strip_doc_ext(p: str) -> str:
+    return p[:-len(ext(p))] if ext(p) in SPHINX_EXT else p
+
+
+def doc_links(root: str, docs: list[str]) -> tuple[dict[str, set[str]], list[tuple[str, str]], set[str]]:
+    """What the doc tree names without an extension: Sphinx and MyST toctree entries
+    (a stripped line, `Title <path>`), :doc: and {doc} targets, resolved against the
+    naming file's folder; glob entries; and the :ref: labels in use."""
+    by_target: dict[str, set[str]] = defaultdict(set)
+    globs: list[tuple[str, str]] = []
+    labels: set[str] = set()
+    for g in docs:
+        try:
+            if os.path.getsize(os.path.join(root, g)) > 2_000_000:
+                continue
+            text = open(os.path.join(root, g), encoding="utf-8", errors="replace").read()
+        except OSError:
+            continue
+        here = posixpath.dirname(g)
+        up = [here]
+        while up[-1]:
+            up.append(posixpath.dirname(up[-1]))
+        cands: list[str] = []
+        for line in text.splitlines():
+            s = line.strip()
+            if not s or s.startswith((":", "..", "#", "`")):
+                continue
+            m = ANGLE.search(s)
+            s = m.group(1) if m else s
+            if TOC_LINE.match(s):
+                cands.append(s)
+        for m in DOC_TARGET.finditer(text):
+            t = m.group(1)
+            a = ANGLE.search(t)
+            cands.append((a.group(1) if a else t).strip())
+        for m in REF_TARGET.finditer(text):
+            t = m.group(1)
+            a = ANGLE.search(t)
+            labels.add((a.group(1) if a else t).strip().lower())
+        for c in cands:
+            c = strip_doc_ext(c.split("#", 1)[0])
+            for base in (up if c.startswith("/") else [here]):
+                target = posixpath.normpath(posixpath.join(base, c.lstrip("/")))
+                if "*" in target:
+                    globs.append((g, target))
+                else:
+                    by_target[target].add(g)
+    return by_target, globs, labels
+
+
 def section_orphans(root: str, files: list[str], exts: set[str], skip: re.Pattern) -> list[dict]:
     candidates = [f for f in files if ext(f) in exts and not skip.search(f) and not is_history(f)]
     by_name: dict[str, list[str]] = defaultdict(list)
@@ -765,6 +866,32 @@ def section_orphans(root: str, files: list[str], exts: set[str], skip: re.Patter
     for name, fs in by_name.items():
         if not seen.get(name, set()) - set(fs):
             orphans.extend(fs)
+    if orphans and exts is DOC_EXT:
+        # A toctree or :doc: names a page by its path without the extension; a Sphinx
+        # label (.. _name:) is reached by :ref:. Either way someone links the page.
+        by_target, globs, labels = doc_links(root, [f for f in files if ext(f) in SPHINX_EXT])
+        have_index = {posixpath.dirname(f) for f in files
+                      if os.path.splitext(os.path.basename(f))[0].lower() in ("index", "contents") and ext(f) in SPHINX_EXT}
+
+        def linked(f: str) -> bool:
+            stem = strip_doc_ext(f)
+            if by_target.get(stem, set()) - {f}:
+                return True
+            if any(g != f and fnmatch.fnmatch(stem, pat) for g, pat in globs):
+                return True
+            if os.path.splitext(os.path.basename(f))[0].lower() in ("index", "contents"):
+                d = posixpath.dirname(f)
+                if not any(a in have_index for a in ancestors(d)[1:]):
+                    return True  # the root of the doc tree: nothing above it to link it
+            try:
+                head = open(os.path.join(root, f), encoding="utf-8", errors="replace").read(200_000)
+            except OSError:
+                return False
+            if re.match(r"\s*(\.\. [^\n]*\n\s*)*:orphan:", head):
+                return True  # Sphinx's own marker for a page that is deliberately in no toctree
+            return any(m.group(1).strip().lower() in labels for m in LABEL_DEF.finditer(head))
+
+        orphans = [f for f in orphans if not linked(f)]
     # A doc that names the folder ("evidence is in .tatastu-sketches/quality-fixes/")
     # references every file in it.
     # Only a specific folder path counts ("docs" alone appears everywhere).
@@ -777,9 +904,13 @@ def section_orphans(root: str, files: list[str], exts: set[str], skip: re.Patter
     return [{"file": f, "last_commit": touched.get(f, "?")} for f in sorted(orphans, key=lambda x: touched.get(x, ""))]
 
 
-DOC_SKIP = re.compile(r"(^|/)(README|CHANGELOG|LICENSE|LICENCE|CONTRIBUTING|SECURITY|CODE_OF_CONDUCT|AGENTS|"
-                      r"CLAUDE|GEMINI|SKILL)\.md$|(^|/)\.(github|claude|cursor|agents|codex)/|(^|/)(content|posts|blog|"
-                      r"pages|src/content)/", re.I)
+DOC_SKIP = re.compile(r"(^|/)(README|CHANGELOG|CHANGES|LICENSE|LICENCE|CONTRIBUTING|SECURITY|CODE_OF_CONDUCT|"
+                      r"AGENTS|CLAUDE|GEMINI|SKILL|AUTHORS|NOTICE|HISTORY)\.(md|rst|txt)$|"
+                      r"(^|/)\.(github|claude|cursor|agents|codex)/|(^|/)(content|posts|blog|pages|src/content)/", re.I)
+# Community and release-process files nothing is meant to link.
+COMMUNITY = re.compile(r"(^|/)(CONDUCT|CODE[_-]OF[_-]CONDUCT|CODEOWNERS|FUNDING|RELEASE[-_]CHECKLIST|RELEASING|"
+                       r"SUPPORT|GOVERNANCE|MAINTAINERS)(\.[a-z]+)?$", re.I)
+DOC_ORPHAN_SKIP = re.compile(DOC_SKIP.pattern + "|" + COMMUNITY.pattern + "|" + TESTISH.pattern, re.I)
 ASSET_SKIP = re.compile(r"(^|/)(favicon|apple-touch-icon|icon|logo|og|opengraph|twitter|manifest|robots)[^/]*$|"
                         r"(^|/)(public/icons|\.github|fastlane|ios/|android/|assets/fonts|Assets\.xcassets)/", re.I)
 
@@ -812,7 +943,7 @@ SECTIONS = {
     "authority_claims": section_authority_claims, "dated_piles": section_dated_piles,
     "escape_hatches": section_escape_hatches, "todos": section_todos,
     "commented_code": section_commented_code, "model_ids": section_model_ids, "env_vars": section_env_vars,
-    "orphan_docs": lambda r, f: section_orphans(r, f, DOC_EXT, DOC_SKIP),
+    "orphan_docs": lambda r, f: section_orphans(r, f, DOC_EXT, DOC_ORPHAN_SKIP),
     "orphan_assets": lambda r, f: group_by_dir(section_orphans(r, f, ASSET_EXT, ASSET_SKIP)),
     "large_files": section_large_files,
 }
