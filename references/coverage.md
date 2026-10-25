@@ -1,6 +1,6 @@
 # Coverage areas
 
-Twenty-one areas the review can touch. Use the ones that fit the person and mark the rest not applicable, with a reason. Every area starts as unknown, and an area is only verified when every account or device in it passes its check. Notes use labels such as "main email" or "bank A", never real addresses or numbers.
+Twenty-one areas the review can touch. Use the ones that fit the person and mark the rest not applicable, with a reason. Every area starts as unknown; in this version what they tell you is user-reported, never verified. **Check** lines say how the person can tell a checklist item worked. Notes use labels such as "main email" or "bank A", never real addresses or numbers.
 
 ## 01 Scope and safety
 
@@ -26,7 +26,7 @@ Long unique passwords in a reputable manager. Keep one that already works; don't
 - **1Password**, this project's preferred paid option, when it fits. Sponsored access may become possible, but none is confirmed: call it proposed until it is. The person owns their account; no sponsor or project ever sees their vault or recovery details. Never put unrelated people into a project-owned family account; decline that and offer their own account or a free option. Before relying on a funded plan, they should know how long it lasts, what renewal would cost, and how to keep or export their data if it ends. (1Password says cancelled accounts can still view and export data if not deleted.)
 - **Bitwarden** as a free option.
 
-**Setup, once they've chosen and said yes:**
+**Setup steps for their checklist, if they want one:**
 
 1. Get the app from the official site or store, not an ad, a message or a caller.
 2. They create the account password privately. With 1Password, the account password, Secret Key / Emergency Kit, recovery code and 2FA are different things; explain which does what.
@@ -60,7 +60,7 @@ If a feature isn't available or biometrics don't work for them, suggest what doe
 
 ## 09 Browsers and extensions
 
-Review extensions by publisher, permissions and need; remove only with a yes. Trim camera, microphone, location and notification permissions. Avoid competing password stores, and don't delete saved passwords until the new manager is confirmed working.
+Review extensions by publisher, permissions and need; they remove only what they choose to. Trim camera, microphone, location and notification permissions. Avoid competing password stores, and don't delete saved passwords until the new manager is confirmed working.
 
 ## 10 Backups
 
@@ -82,7 +82,7 @@ A convincing voice, video or spelling doesn't prove who's asking. For urgent mon
 
 ## 14 Connected apps, AI agents and developer access
 
-Apps with access to email or files, AI tools and agents, MCP servers, agent skills, API tokens and SSH keys. Prefer narrow, read-only, expiring access, with a human approving sending, deleting, paying or running code. Installing a skill or plugin is a trust decision. For an exposed token, revoke it at the issuer with consent; a replacement is done only when the new one is active, the old one no longer works, and everything that needs it still works. Spending limits may only warn rather than stop charges.
+Apps with access to email or files, AI tools and agents, MCP servers, agent skills, API tokens and SSH keys. Prefer narrow, read-only, expiring access, with a human approving sending, deleting, paying or running code. Installing a skill or plugin is a trust decision. For an exposed token, they revoke it at the issuer; a replacement is done only when the new one is active, the old one no longer works, and everything that needs it still works. Spending limits may only warn rather than stop charges.
 
 **For developers and admins, when relevant:** map who owns the accounts, billing and credentials; keep secret values out of model and tool output; track stored, deployed and in-use separately; decide explicitly between revoking now (risking an outage) and a short overlap (risking exposure), with an owner and deadline; separate development and production credentials; check sign-in, integrations and backups end to end after changes. A passing CI job doesn't prove production uses the fix. Code and infrastructure reviews need their own scope.
 
@@ -108,11 +108,11 @@ Trusted wallet sources, transaction and approval risks, offline recovery. Never 
 
 ## 20 Unused accounts and data
 
-Old accounts, subscriptions and integrations. Check what depends on them first. Deleting an account may not cancel an app-store subscription, and removing app access may not delete data. Each deletion is its own yes.
+Old accounts, subscriptions and integrations. Check what depends on them first. Deleting an account may not cancel an app-store subscription, and removing app access may not delete data. Each deletion is their own decision.
 
 ## 21 Incident readiness and maintenance
 
-A short lost-phone and hacked-account plan with known official contacts, kept somewhere other than the phone or vault. For a breach notice: confirm it independently, work out what's affected, contain with consent, check the new access works, retire old access, and list what's still unknown. A changed password doesn't close an incident. Agree a review date and the events that should trigger one: a new phone or number, a breach notice, a lost key, a move, a household change, or a sponsored plan ending.
+A short lost-phone and hacked-account plan with known official contacts, kept somewhere other than the phone or vault. For a breach notice: confirm it independently, work out what's affected, contain it, check the new access works, retire old access, and list what's still unknown. A changed password doesn't close an incident. Agree a review date and the events that should trigger one: a new phone or number, a breach notice, a lost key, a move, a household change, or a sponsored plan ending.
 
 ## Official sources
 

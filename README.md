@@ -1,12 +1,8 @@
 # Personal Security
 
-Helps someone review and improve their personal digital security with the AI they already use. It asks about their setup one question at a time, explains what it sees, and offers options, including changing nothing. Then the person picks a level of help:
+Helps someone review and improve their personal digital security with the AI they already use. It asks about their setup one question at a time, then gives a plain-language assessment: what's working, the main gaps, what's unknown and what to do first. If they want, it adds a short checklist they can work through on their own.
 
-1. **Just the assessment.**
-2. **Do it together:** the AI explains each change and the person makes it.
-3. **Done for you:** the AI makes the changes with tools the person has connected (a shell, a browser agent, an email connector, developer CLIs), under a plan they approve once. Sign-in and recovery changes, deletions and revoking access still get their own yes, and the person always handles passwords, codes, phone prompts and identity checks.
-
-It never asks for passwords and never touches accounts outside what the person approved.
+This MVP is assessment only. The AI never asks for passwords, never uses tools on the person's accounts or devices, and never makes changes. Making changes together, and having them done through connected tools, are planned later levels; a draft of both is in git history, in commit `1df85b8`.
 
 ## Two ways to use it
 
@@ -33,6 +29,6 @@ Add `--check` to only confirm the guide is up to date.
 
 ## Status
 
-Pilot draft, not yet tried with real people. Earlier, longer versions were tested with invented cases in Codex. This shorter rewrite has had a spot check only, and done for you has only been checked as a conversation: it hasn't yet run against real test accounts. Untested so far: the consumer Claude and ChatGPT apps, and Claude Code (blocked by an expired login). 1Password is the preferred paid option, but no sponsorship is agreed. This isn't professional incident response or a security guarantee.
+Pilot draft, not yet tried with real people. Earlier, longer versions were tested with invented cases in Codex. This assessment-only version has had a spot check only. Untested so far: the consumer Claude and ChatGPT apps, and Claude Code (blocked by an expired login). 1Password is the preferred paid option, but no sponsorship is agreed. This isn't professional incident response or a security guarantee.
 
 The earlier research notes, test runs and rollout plan are in git history, in commit `806f27f`.
