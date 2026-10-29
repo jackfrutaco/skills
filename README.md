@@ -7,6 +7,7 @@ any tool that reads `SKILL.md`.
 | Skill | What it does |
 |---|---|
 | [cobweb](skills/cobweb/SKILL.md) | Sweeps a long-running or AI-assisted project for cobwebs: instructions, memory, plans and docs that steer agents wrong, retired names, dead code and config, clutter and slow loops. Reports first; changes nothing until you approve. |
+| [personal-security](skills/personal-security/SKILL.md) | A plain-language review of someone's personal digital security: recovery, email, passwords, 2FA, devices, money, scams and connected apps. Asks questions, explains what it finds and gives a checklist. Assessment only; it never inspects or changes accounts. Also works in any AI chat as one file, [PERSONAL-SECURITY-GUIDE.md](skills/personal-security/PERSONAL-SECURITY-GUIDE.md). |
 
 ## Install
 
