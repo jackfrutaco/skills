@@ -58,11 +58,54 @@ prices, labels or plan availability; they change.
 | actions/checkout, setup-node, upload-artifact, download-artifact | v7.0.1, v7.1.0, v7.0.2, v8.0.2 (SHAs in the example) | pinned 2026-10-30 |
 | `ci_health.mjs` live read | one public organization repository, 14 days | 2026-10-30, read-only |
 
+## Hosted qualification (2026-10-30)
+
+Fixture: [Tatastu-Labs/ci-skill-fixture](https://github.com/Tatastu-Labs/ci-skill-fixture),
+public, organization-owned, the example workflow without its deploy job; ruleset
+requiring `gate` (Actions app only), squash merge queue, no bypass actors, read back.
+
+| Case | Result |
+|---|---|
+| Push to main | full set, build, release manifest binding candidate, run, gate and digest of worker + assets |
+| PR, docs only (#1) | no-op, every check skipped, gate passed |
+| PR, e2e only (#2) | affected: static + e2e, unit omitted with reason |
+| PR, broken unit test (#3) | unit and unit-report failed, gate failed, merge state BLOCKED; enqueue refused: "Required status check gate is failing" |
+| PR editing the policy to mark everything no-op (#4) | full set: "ci/ci-policy.json is CI configuration" |
+| PR adding a job the policy lacks (#5) | gate failed: job "extra-lint" is not a policy check |
+| PR with a quarantined failing assertion (#6) | passed; "quarantined failure (nonblocking)" logged |
+| Fork PR (#7) | ran without secrets, affected set, gate passed |
+| Merge queue (#1, #2) | merge_group runs on the queue commits, full set, gate passed, merged with those SHAs |
+| Manual dispatch on main | full set and build |
+| Re-run to attempt 3 | checks skipped, gate failed: "attempt 3 exceeds the cap of 2, verification incomplete" |
+| Release check on the hosted artifact | allowed for itself; denied for a stale candidate, an unknown live version and one changed byte |
+
+Not exercised: Dependabot PRs, the Cloudflare deploy job (no staging credentials), a
+shard that dies before reporting on a hosted runner (covered by local tests).
+
+## Behavioral evals (2026-10-30)
+
+`evals/run_behavior.mjs`, codex-cli 0.159.2 (its default model), 6 scenarios × with and
+without the skill × 3 runs, plus 3 more of each for the Python setup scenario after a
+grader fix. No run attempted an external effect or leaked the canary secret. Both
+conditions passed every scored check, so on these cases the skill showed no safety
+difference for Codex. Its effect showed in behavior: on a Python project with no remote,
+all 6 runs without the skill added a GitHub Actions workflow, and all 6 with it built a
+local tiered check script and said merges are not enforced (observed after the runs,
+not a pre-registered assertion). Cost with the skill: about 25% more input tokens and
+30 to 90% more time. It read `SKILL.md` on "the unit tests are failing, fix it" in 3 of 3
+runs without loading references or changing CI files. The Claude Code route has not run.
+
+## Pilots (2026-10-30)
+
+- qadrops (setup): draft PR jackfrutaco/qadrops#8, green on GitHub (123 tests). CI on the
+  oldest allowed Node (24) caught that `npm test` failed there; fixed with a glob.
+- Sook (repair): draft PR jackfrutaco/sook#83. 8 of the last 9 browser failures were one
+  check losing a saved location after reload; the check now waits on stored state. The
+  flake did not reproduce locally, so its effect needs weeks of runs to judge.
+
 ## Not yet qualified
 
-- The example workflow has not run on GitHub. Hosted event behavior (fork, Dependabot,
-  merge queue, manual dispatch) and protection read-back are unverified until a
-  disposable fixture repository exercises them.
 - The Cloudflare deploy leg has not run against a staging target.
 - Blacksmith migration has not been measured on a comparable workload.
+- Dependabot-triggered runs; the Claude Code behavioral route.
 - Other CI providers and other test frameworks: guidance only.

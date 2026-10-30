@@ -13,7 +13,10 @@ diagnostics are kept. Test-level metrics need a structured report:
 | Anything else | the project's command; `pytest --junitxml`, `go-junit-report`, `cargo nextest --profile ci` (JUnit), `gotestsum --junitfile` | tool-specific | process-level until qualified: say test-level metrics are unavailable |
 
 Notes from those runs: node:test does not create the destination directory and crashes
-without a report if it is missing (exit 7); Vitest and Playwright create it.
+without a report if it is missing (exit 7); Vitest and Playwright create it. `node --test
+test/` (a bare directory) works on Node 26 but fails on Node 24 with "Cannot find module
+.../test"; pass a quoted glob (`node --test 'test/*.test.ts'`) so the command works on
+every version the project supports, and run CI on the oldest one `engines` allows.
 
 Rules:
 

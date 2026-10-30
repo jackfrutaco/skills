@@ -119,6 +119,14 @@ checks identical for PR and queue, and expect each change to run twice. Without 
 "require branches to be up to date before merging" re-tests against the latest base at
 the cost of more rebases. Do not claim a queue exists until the rules read back.
 
+Observed on a fixture (2026-10-30): each queue entry runs on the queue's own merge
+commit (`gh-readonly-queue/main/pr-N-<base>`), and that commit lands on `main`
+unchanged, so the gate result is for the exact merged bytes. When several entries pass
+together the queue updates `main` once, so one `push` run covers several merges; each was
+already verified in `merge_group`. With a queue, `gh pr merge` fails with an auto-merge
+error; enqueue from the pull request page or the `enqueuePullRequest` GraphQL mutation.
+GitHub refuses to enqueue a pull request whose required `gate` is failing.
+
 ## Other hosted CI
 
 GitLab CI, Buildkite, CircleCI, Jenkins and others keep their owner. Apply the same
