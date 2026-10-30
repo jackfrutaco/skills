@@ -6,6 +6,7 @@ any tool that reads `SKILL.md`.
 
 | Skill | What it does |
 |---|---|
+| [ci](skills/ci/SKILL.md) | Sets up, audits, repairs or speeds up a project's tests, CI and deploys: local commands and hooks, GitHub Actions, flaky tests, sharding, runner cost (including Blacksmith) and deploys that ship exactly what was tested. Measures first; a skipped or missing required check never counts as green; changes only what you asked for. |
 | [cobweb](skills/cobweb/SKILL.md) | Sweeps a long-running or AI-assisted project for cobwebs: instructions, memory, plans and docs that steer agents wrong, retired names, dead code and config, clutter and slow loops. Reports first; changes nothing until you approve. |
 | [personal-security](skills/personal-security/SKILL.md) | A plain-language review of someone's personal digital security: recovery, email, passwords, 2FA, devices, money, scams and connected apps. Asks questions, explains what it finds and gives a checklist. Assessment only; it never inspects or changes accounts. Also works in any AI chat as one file, [PERSONAL-SECURITY-GUIDE.md](skills/personal-security/PERSONAL-SECURITY-GUIDE.md). |
 
@@ -19,6 +20,24 @@ npx skills add jackfrutaco/skills --skill cobweb  # one skill
 Or copy a folder from `skills/` into your agent's skills folder (`~/.agents/skills/`,
 `~/.claude/skills/`, `~/.codex/skills/`, …). Tatastu ships some of these built in;
 a copy you install yourself takes precedence.
+
+## CI
+
+Ask your agent: *"Set up CI for this project."*, *"Why is our CI slow?"*, *"Would
+Blacksmith help?"* or *"Make our deploys safe."* It picks one of audit, setup, repair or
+delivery and does only that.
+
+```bash
+node skills/ci/scripts/ci_health.mjs --repo OWNER/REPO --format markdown   # read-only metrics
+node skills/ci/evals/test_scripts.mjs                                      # the skill's own tests
+```
+
+- `templates/ci/` is copied into your repository: an expected-evidence gate (a skipped,
+  missing or report-less required check fails), report and quarantine checks, and a
+  release manifest that refuses stale or unverified promotions.
+- Needs Node 20 or later for the scripts; projects in other languages keep their native
+  commands. GitHub Actions is the qualified hosted adapter; other providers get guidance.
+- Read-only by default. Settings, secrets, runners, spend and deploys need your say-so.
 
 ## Cobweb
 

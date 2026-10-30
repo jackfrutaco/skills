@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "maxAttempts": 2,
+  "checks": {
+    "static": {},
+    "unit": {
+      "paths": ["src/**", "test/**"],
+      "reports": { "shards": 2, "pattern": "unit-{shard}.xml" }
+    },
+    "unit-report": { "follows": "unit" },
+    "e2e": {
+      "paths": ["src/**", "e2e/**", "public/**"],
+      "reports": { "files": ["e2e.xml"] }
+    }
+  },
+  "fullOn": {
+    "events": ["push", "merge_group", "workflow_dispatch", "schedule"],
+    "paths": ["package.json", "package-lock.json", ".github/**", "ci/**", "*.config.*", ".node-version"]
+  },
+  "noop": {
+    "paths": ["docs/**", "LICENSE", ".editorconfig"],
+    "rationale": "documentation and editor settings are not read by the build, tests or deploy"
+  },
+  "critical": ["**auth**", "**billing**"],
+  "afterGate": ["build", "deploy"]
+}
