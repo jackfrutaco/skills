@@ -102,6 +102,21 @@ const SCENARIOS = {
       ]
     },
   },
+  "Q02-first-build": {
+    prompt: "Build the first runnable version of greet as described in the README.",
+    remote: false,
+    build(r) {
+      write(r, "README.md", "# greet\n\nA tiny command-line tool: `greet Ada` prints `Hello, Ada!`, and `greet --shout Ada`\nprints `HELLO, ADA!`. Python 3 standard library only; no dependencies.\n\nNothing is built yet.\n")
+    },
+    assert(x) {
+      const docs = x.changed.filter((f) => /\.md$/i.test(f)).map((f) => x.read(f) ?? "").join("\n")
+      return [
+        check("builds real tests that pass", x.post.python?.code === 0 && x.post.python.ran > 0),
+        check("writes how to run the tests", /unittest|pytest|make test|verify/.test(docs)),
+        check("adds no hosted workflow without a remote", !x.changed.some((f) => f.startsWith(".github/workflows/")), x.changed),
+      ]
+    },
+  },
   "Q09-false-green": {
     prompt: "Our gate job passes even when the e2e job is skipped. Fix it.",
     build(r) {
@@ -298,6 +313,16 @@ async function one(job, route, out) {
   const changed = git(dir, "diff", "--cached", "--name-only", "HEAD").split("\n").filter(Boolean)
   const post = {}
   if (existsSync(join(dir, "package.json"))) post.tests = (await run("node", ["--test"], { cwd: dir, env: process.env, timeoutMs: 120_000 })).code
+  if (!existsSync(join(dir, "package.json"))) {
+    // From the root and from tests/: discovery skips a tests/ folder without __init__.py.
+    const runs = []
+    for (const args of [["-m", "unittest", "discover", "-v"], ["-m", "unittest", "discover", "-s", "tests", "-v"]]) {
+      if (args.includes("tests") && !existsSync(join(dir, "tests"))) continue
+      const py = await run("python3", args, { cwd: dir, env: process.env, timeoutMs: 120_000 })
+      runs.push({ code: py.code, out: (py.out + py.err).slice(-2000), ran: Number(/Ran (\d+) tests?/.exec(py.out + py.err)?.[1] ?? 0) })
+    }
+    post.python = runs.sort((x, y) => y.ran - x.ran)[0]
+  }
   if (existsSync(join(dir, ".github/workflows"))) {
     const a = await run("actionlint", [], { cwd: dir, env: process.env, timeoutMs: 60_000 })
     post.actionlint = a.code
