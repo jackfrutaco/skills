@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "entries": [
+    {
+      "test": "test/search.test.ts::search > returns results after debounce",
+      "check": "unit",
+      "owner": "@search-team",
+      "issue": "https://github.com/OWNER/REPO/issues/123",
+      "reason": "timer race under load; fails about 1 in 40 runs on 2-vCPU runners",
+      "riskApproval": "@maintainer",
+      "entered": "2026-10-20",
+      "review": "2026-11-03"
+    }
+  ]
+}

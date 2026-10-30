@@ -1,0 +1,301 @@
+# Example generated for a fixture Node project whose check policy is
+# templates/ci/ci-policy.example.json, copied with the gate scripts into ci/.
+# It shows the shape; a real project gets its own commands, checks and branch.
+# Validated with actionlint and zizmor; hosted qualification is tracked separately.
+# Check jobs must not set `name:` (the gate matches jobs by id).
+name: ci
+
+on:
+  pull_request:
+  merge_group:
+    types: [checks_requested]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # A newer push to a PR cancels that PR's older run. Every other run gets its own
+  # group (run_id), so no push to main, queue entry or manual run is ever replaced:
+  # GitHub keeps only one pending run per group and cancels the older one.
+  group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  select:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      selection: ${{ steps.select.outputs.selection }}
+      max_attempts: ${{ steps.select.outputs.max_attempts }}
+      shards_unit: ${{ steps.select.outputs.shards_unit }}
+      run_static: ${{ steps.select.outputs.run_static }}
+      run_unit: ${{ steps.select.outputs.run_unit }}
+      run_e2e: ${{ steps.select.outputs.run_e2e }}
+    steps:
+      # Two commits: on pull_request the checked-out candidate is GitHub's merge commit
+      # and its first parent is the base it was merged onto. No later fetch is needed,
+      # which matters in private repositories where credentials are not persisted.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - id: select
+        env:
+          EVENT: ${{ github.event_name }}
+          CANDIDATE: ${{ github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$CANDIDATE"
+          base=""
+          if [ "$EVENT" = pull_request ]; then base=$(git rev-parse --verify --quiet HEAD^1 || true); fi
+          node ci/gate.mjs select --policy ci/ci-policy.json --event "$EVENT" --candidate "$CANDIDATE" ${base:+--base "$base"}
+
+  static:
+    needs: select
+    if: needs.select.outputs.run_static == 'true' && github.run_attempt <= fromJSON(needs.select.outputs.max_attempts)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+
+  unit:
+    needs: select
+    if: needs.select.outputs.run_unit == 'true' && github.run_attempt <= fromJSON(needs.select.outputs.max_attempts)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.select.outputs.shards_unit) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - id: test
+        env:
+          SHARD: ${{ matrix.shard }}
+          TOTAL: ${{ strategy.job-total }}
+        run: |
+          set +e
+          npx vitest run --shard="$SHARD/$TOTAL" --reporter=default --reporter=junit --outputFile.junit="reports/unit-$SHARD.xml"
+          echo "code=$?" >> "$GITHUB_OUTPUT"
+      - name: Check this shard's report against its exit code
+        env:
+          SHARD: ${{ matrix.shard }}
+          CODE: ${{ steps.test.outputs.code }}
+        run: node ci/reports.mjs --policy ci/ci-policy.json --check unit --dir reports --shard "$SHARD" --exit-code "$CODE" --quarantine ci/quarantine.json
+      - if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: unit-report-${{ matrix.shard }}
+          path: reports/
+          retention-days: 14
+          if-no-files-found: warn
+
+  unit-report:
+    needs: [select, unit]
+    if: ${{ !cancelled() && needs.select.outputs.run_unit == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: unit-report-*
+          merge-multiple: true
+          path: reports
+      - name: Every shard reported, and only quarantined assertions failed
+        run: node ci/reports.mjs --policy ci/ci-policy.json --check unit --dir reports --quarantine ci/quarantine.json
+
+  e2e:
+    needs: select
+    if: needs.select.outputs.run_e2e == 'true' && github.run_attempt <= fromJSON(needs.select.outputs.max_attempts)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - id: test
+        env:
+          PLAYWRIGHT_JUNIT_OUTPUT_NAME: reports/e2e.xml
+        run: |
+          set +e
+          npx playwright test --reporter=list,junit
+          echo "code=$?" >> "$GITHUB_OUTPUT"
+      - env:
+          CODE: ${{ steps.test.outputs.code }}
+        run: node ci/reports.mjs --policy ci/ci-policy.json --check e2e --dir reports --shard 1 --exit-code "$CODE" --quarantine ci/quarantine.json
+      - if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-report
+          path: |
+            reports/
+            test-results/
+          retention-days: 14
+          if-no-files-found: warn
+
+  # The one required check. It runs for every event and passes only when every
+  # expected check succeeded, every omission has a recorded reason, and no job in
+  # this run is missing from the policy.
+  gate:
+    if: ${{ always() }}
+    needs: [select, static, unit, unit-report, e2e]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: List this run's jobs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          ATTEMPT: ${{ github.run_attempt }}
+        run: gh api --paginate "repos/$REPO/actions/runs/$RUN_ID/attempts/$ATTEMPT/jobs?per_page=100" --jq '.jobs[] | {name, status, conclusion}' | jq -s . > jobs.json
+      - env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+          CANDIDATE: ${{ github.sha }}
+        run: node ci/gate.mjs verify --policy ci/ci-policy.json --candidate "$CANDIDATE" --jobs jobs.json --out gate-result.json
+      - if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: gate-result
+          path: gate-result.json
+          retention-days: 30
+
+  # Release legs run for pushes and manual runs on the default branch, after the gate
+  # passed in this same run, so the artifact is built from the verified candidate.
+  # A manual run goes through the same full gate; there is no bypass input.
+  build:
+    needs: gate
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main' && needs.gate.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      # The Worker's static assets directory from its Wrangler config; empty if none.
+      WORKER_ASSETS_DIR: public
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+      - run: npm ci
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: gate-result
+      - name: Bundle once, without uploading
+        run: |
+          npx wrangler deploy --dry-run --outdir dist/worker
+          modules=$(find dist/worker -maxdepth 1 -name '*.js')
+          if [ "$(printf '%s\n' "$modules" | grep -c .)" != 1 ]; then
+            echo "::error::expected one bundled module in dist/worker, found: $modules"; exit 1
+          fi
+          echo "ENTRY=worker/$(basename "$modules")" >> "$GITHUB_ENV"
+          if [ -n "$WORKER_ASSETS_DIR" ]; then cp -R "$WORKER_ASSETS_DIR" dist/assets; fi
+      - env:
+          CANDIDATE: ${{ github.sha }}
+          REPOSITORY: ${{ github.repository }}
+        run: node ci/release.mjs manifest --artifact dist --entry "$ENTRY" --candidate "$CANDIDATE" --gate gate-result.json --repository "$REPOSITORY" --out release.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release
+          path: |
+            dist/
+            release.json
+          retention-days: 90
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: production
+    # A newer waiting deploy replaces an older waiting one; release.mjs check refuses
+    # anything older than what is live, whatever order runs arrive in.
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+      - run: npm ci
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release
+          path: release
+      - name: Refuse a stale or unverified promotion
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CANDIDATE: ${{ github.sha }}
+          REPOSITORY: ${{ github.repository }}
+          # Set only for a first or deliberately untagged deploy, then remove it.
+          ALLOW_UNKNOWN_LIVE: ${{ vars.ALLOW_UNKNOWN_LIVE }}
+        run: |
+          deployed=unknown
+          if status=$(npx wrangler deployments status --json 2>/dev/null); then
+            live=$(printf '%s' "$status" | jq -r '.versions | max_by(.percentage) | .version_id // empty')
+            if [ -n "$live" ]; then
+              tag=$(npx wrangler versions view "$live" --json | jq -r '.annotations["workers/tag"] // empty')
+              if printf '%s' "$tag" | grep -Eq '^[0-9a-f]{40}$'; then deployed=$tag; fi
+            fi
+          fi
+          node ci/release.mjs check --manifest release/release.json --artifact release/dist \
+            --candidate "$CANDIDATE" --repository "$REPOSITORY" --deployed "$deployed" \
+            ${ALLOW_UNKNOWN_LIVE:+--allow-unknown-live "$ALLOW_UNKNOWN_LIVE"}
+      - name: Upload the verified bundle as a tagged version, then route all traffic to it
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CANDIDATE: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          entry=$(jq -r .artifact.entry release/release.json)
+          assets=()
+          if [ -d release/dist/assets ]; then assets=(--assets release/dist/assets); fi
+          npx wrangler versions upload "release/dist/$entry" --no-bundle "${assets[@]}" --tag "$CANDIDATE" --message "ci run $RUN_ID"
+          npx wrangler versions deploy --version-tag "$CANDIDATE@100" --message "ci run $RUN_ID" --yes
+      - name: Read back the live version and check meaningful health
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CANDIDATE: ${{ github.sha }}
+          HEALTH_URL: ${{ vars.HEALTH_URL }}
+        run: |
+          live=$(npx wrangler deployments status --json | jq -r '.versions | max_by(.percentage) | .version_id')
+          tag=$(npx wrangler versions view "$live" --json | jq -r '.annotations["workers/tag"] // empty')
+          test "$tag" = "$CANDIDATE" || { echo "::error::live version is tagged '$tag', expected $CANDIDATE"; exit 1; }
+          curl --fail --silent --show-error --max-time 10 "$HEALTH_URL" | grep -F "\"version\":\"$CANDIDATE\""
