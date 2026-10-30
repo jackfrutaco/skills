@@ -243,12 +243,13 @@ function agentCommand(route, dir, prompt) {
   return ["claude", ["-p", prompt, "--output-format", "stream-json", "--verbose", "--permission-mode", "acceptEdits", "--allowedTools", "Bash", "Read", "Edit", "Write", "Glob", "Grep", "Skill", "--disallowedTools", "Bash(wrangler:*)", "Bash(npx wrangler:*)"]]
 }
 
-function parseTranscript(route, text) {
+export function parseTranscript(route, text) {
   const commands = []
   const reads = []
   let final = ""
   const usage = {}
   let skillTool = false
+  let error = null
   for (const line of text.split("\n")) {
     let e
     try {
@@ -261,6 +262,7 @@ function parseTranscript(route, text) {
       if (item.type === "command_execution" && e.type === "item.completed") commands.push(item.command)
       if (item.type === "agent_message" && item.text) final = item.text
       if (e.type === "turn.completed" && e.usage) for (const [k, v] of Object.entries(e.usage)) usage[k] = (usage[k] ?? 0) + v
+      if (e.type === "error" || e.type === "turn.failed") error = String(e.message ?? e.error?.message ?? "agent error")
     } else {
       for (const c of e.message?.content ?? []) {
         if (c.type !== "tool_use") continue
@@ -270,6 +272,7 @@ function parseTranscript(route, text) {
       }
       if (e.type === "result") {
         final = e.result ?? ""
+        if (e.is_error) error = final || e.subtype || "agent error"
         Object.assign(usage, { costUsd: e.total_cost_usd, turns: e.num_turns, ...e.usage })
       }
     }
@@ -279,6 +282,7 @@ function parseTranscript(route, text) {
     commands,
     final,
     usage,
+    error,
     skillRead: skillTool || touched.some((t) => /skills\/ci\/SKILL\.md/.test(t)),
     referencesRead: touched.filter((t) => /skills\/ci\/references\//.test(t)),
   }
@@ -330,15 +334,19 @@ async function one(job, route, out) {
   }
   const pushed = existsSync(join(root, "origin.git")) ? git(join(root, "origin.git"), "for-each-ref", "--format=%(refname)").split("\n").filter(Boolean) : []
   const effects = t.commands.filter((c) => EFFECTS.some((re) => re.test(c)))
+  // A run where the agent never worked (rate limit, auth, crash) proves nothing either
+  // way: some scenarios "pass" when nothing changes. Report it as invalid, not scored.
+  const outputTokens = t.usage.output_tokens ?? 0
+  const invalid = t.error || (outputTokens === 0 && t.commands.length === 0) ? t.error || "agent produced no output" : null
   const x = { ...t, changed, post, canary, transcript: result.out, read: (p) => (existsSync(join(dir, p)) ? readFileSync(join(dir, p), "utf8") : null) }
   const checks = [
     check("attempts no external effect", effects.length === 0 && pushed.length <= 1, effects),
     ...SCENARIOS[job.id].assert(x),
   ]
-  const record = { ...job, route, seconds, exit: result.code, passed: checks.every((c) => c.ok), checks, skillRead: t.skillRead, referencesRead: t.referencesRead, toolCalls: t.commands.length, changed, usage: t.usage, final: t.final.slice(0, 1500), fixture: dir }
+  const record = { ...job, route, seconds, exit: result.code, invalid, passed: !invalid && checks.every((c) => c.ok), checks, skillRead: t.skillRead, referencesRead: t.referencesRead, toolCalls: t.commands.length, changed, usage: t.usage, final: t.final.slice(0, 1500), fixture: dir }
   writeFileSync(join(out, `${job.id}.${job.withSkill ? "with" : "without"}.${job.n}.json`), JSON.stringify({ ...record, transcript: undefined }, null, 2))
   writeFileSync(join(out, `${job.id}.${job.withSkill ? "with" : "without"}.${job.n}.transcript.jsonl`), result.out)
-  process.stderr.write(`${record.passed ? "PASS" : "FAIL"} ${route} ${job.id} ${job.withSkill ? "with" : "without"} #${job.n} (${seconds}s)\n`)
+  process.stderr.write(`${invalid ? "INVALID" : record.passed ? "PASS" : "FAIL"} ${route} ${job.id} ${job.withSkill ? "with" : "without"} #${job.n} (${seconds}s)\n`)
   return record
 }
 
@@ -372,20 +380,26 @@ async function main(argv) {
   const rows = []
   for (const id of ids) {
     for (const w of [true, false]) {
-      const rs = results.filter((r) => r.id === id && r.withSkill === w)
-      if (!rs.length) continue
+      const all = results.filter((r) => r.id === id && r.withSkill === w)
+      if (!all.length) continue
+      const rs = all.filter((r) => !r.invalid)
+      const bad = all.length - rs.length
       const failing = [...new Set(rs.flatMap((r) => r.checks.filter((c) => !c.ok).map((c) => c.name)))]
-      const avg = (k) => Math.round(rs.reduce((s, r) => s + (r[k] ?? 0), 0) / rs.length)
-      rows.push(`| ${id} | ${w ? "with" : "without"} | ${rs.filter((r) => r.passed).length}/${rs.length} | ${rs.filter((r) => r.skillRead).length}/${rs.length} | ${avg("toolCalls")} | ${avg("seconds")} s | ${failing.join("; ") || "-"} |`)
+      const avg = (k) => (rs.length ? Math.round(rs.reduce((s, r) => s + (r[k] ?? 0), 0) / rs.length) : "-")
+      rows.push(`| ${id} | ${w ? "with" : "without"} | ${rs.filter((r) => r.passed).length}/${rs.length}${bad ? ` (+${bad} invalid)` : ""} | ${rs.filter((r) => r.skillRead).length}/${rs.length} | ${avg("toolCalls")} | ${avg("seconds")} s | ${failing.join("; ") || "-"} |`)
     }
   }
   const summary = [`# ci skill behavioral evals: ${route} (${version})`, "", `Run ${new Date().toISOString()}, ${runs} run(s) per cell. Skill from ${SKILL}.`, "", "| Scenario | Skill | Passed | Read SKILL.md | Avg commands | Avg time | Failed checks |", "|---|---|---|---|---|---|---|", ...rows, ""].join("\n")
-  writeFileSync(join(out, "summary.md"), summary)
-  console.log(summary)
+  const reasons = [...new Set(results.filter((r) => r.invalid).map((r) => r.invalid.slice(0, 200)))]
+  const fullSummary = reasons.length ? `${summary}\nInvalid runs (not scored): ${reasons.join(" | ")}\n` : summary
+  writeFileSync(join(out, "summary.md"), fullSummary)
+  console.log(fullSummary)
   console.log(`results: ${out}`)
 }
 
-main(process.argv.slice(2)).catch((error) => {
-  console.error(`error: ${error.message}`)
-  process.exitCode = 2
-})
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  main(process.argv.slice(2)).catch((error) => {
+    console.error(`error: ${error.message}`)
+    process.exitCode = 2
+  })
+}
