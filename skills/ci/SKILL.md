@@ -1,6 +1,6 @@
 ---
 name: ci
-description: "Set up, audit, repair or speed up a project's verification and delivery pipeline: local test commands and hooks, GitHub Actions workflows and required checks, flaky tests, test sharding, runner choice and cost (including whether Blacksmith would help), and deploys that promote exactly what was tested. Measures before changing anything, keeps every required check honest (a skipped or missing check never counts as green), and changes only what the request covers. Use when someone asks to set up CI or tests for a new project, why CI is slow, red, flaky or expensive, to fix a failing pipeline job, to add a merge gate or merge queue, or to make deploys safe. Do not use for writing or fixing an individual test, a known one-line fix, or a general question the project's own test guide already answers."
+description: "Sets up and fixes how a project is verified and shipped: CI pipelines, local check commands, required checks and deploys. Use it when building a project's first runnable version and the project has no test or verification setup yet (it sets up local check commands with real tests and names what is not covered), and when someone asks to set up, audit, repair or speed up CI: hooks, GitHub Actions workflows and required checks, flaky tests, test sharding, runner choice and cost (including whether Blacksmith would help), or deploys that promote exactly what was tested. Measures first, keeps every required check honest (a skipped or missing check never counts as green) and changes only what the request covers. Not for writing or fixing an individual test, a known one-line fix, or a question the project's own test guide answers."
 ---
 
 # CI
@@ -66,6 +66,11 @@ Read the request and choose:
 
 If the request is one test, a known fix or a question the project's testing guide
 answers, stop here and follow that guide instead.
+
+Building a project's first runnable version without a documented verification setup is
+**setup**, scoped to the local baseline: the native commands, real tests for what was
+built, the instructions block, and what is not covered. Start locally; a remote,
+protection, runners and deploys come later and need their own request.
 
 Say in one line what you will inspect and what you will not touch. Ask only for a
 decision the request leaves open that changes the outcome (for example: "may I run
