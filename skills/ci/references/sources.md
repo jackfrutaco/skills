@@ -135,15 +135,24 @@ G01's per-landing measure. Two runs per cell is a small sample.
 
 **Trigger fix.** In that batch Codex never loaded the skill for "review our landing queue
 script" (G03, 0/2) and loaded it only 1/2 for G02. The description had "landing queues"
-mid-sentence under "set up, audit, repair or speed up CI", with no "review". The
-description now leads with local gates, landing or merge queues and gate-result reuse,
-and its verbs include "review". With-skill runs on the new description, same model:
+mid-sentence under "set up, audit, repair or speed up CI", with no "review".
 
-| Scenario | Passed | Skill read | Read local-gates.md |
-|---|---|---|---|
-| G03 landing-queue trust | 2/2 | 2/2 | 2/2 |
-| G02 reuse key | 2/2 | 2/2 | 2/2 |
-| Q01 single test (must not trigger) | 2/2 | 0/2 | 0/2 |
+- **First attempt:** a long parenthetical about gates in the first sentence. It loaded
+  the skill for G03 and G02 (2/2 each) but for only 1/2 first builds. The previous
+  description got 2/2 on the same model, which matches the 2026-10-30 finding that the
+  first-build clause must come early.
+- **Final wording:** the first sentence stays short and names "local gates". "Review" is
+  one of the verbs. "Pre-push hooks, landing or merge queues and reuse of earlier gate
+  results" moved into the list of requests.
+
+With-skill runs on the final wording, same model:
+
+| Scenario | Passed | Skill read |
+|---|---|---|
+| Q02 first build | 3/3 | 3/3 |
+| G03 landing-queue trust | 3/3 | 3/3 |
+| G02 reuse key | 2/2 | 2/2 |
+| Q01 single test (must not trigger) | 2/2 | 0/2 |
 
 An earlier batch on the CLI's default model (`gpt-6-astra`, xhigh) was stopped: 7 of its
 runs hit 429 and 5 completed (G01 with 1/2, without 0/2; G02 with 1/1). Pass
