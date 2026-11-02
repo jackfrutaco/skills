@@ -117,6 +117,19 @@ README Verification section and said nothing enforces the tests before merging; 
 single-test request in a project with a test guide did not load it. The standalone
 Claude Code route and Pi routes have not run.
 
+### Local-gate scenarios (2026-11-02, partial)
+
+codex-cli 0.159.2, 2 runs per cell planned; 7 of 12 runs hit a 429 rate limit and are
+not scored. No valid run attempted an external effect or changed a file.
+
+| Scenario | With the skill | Without the skill |
+|---|---|---|
+| G01 slow local gate | 1/2: both measured per landing and found the ungated landing; one did not name it (the wording now asks for commit and tree) | 0/2: neither measured per landing |
+| G02 reuse key | 1/1 | not run (rate limit) |
+| G03 landing-queue trust | not run (rate limit) | not run (rate limit) |
+
+Inconclusive at this sample size.
+
 ## Pilots (2026-10-30)
 
 - qadrops (setup): draft PR jackfrutaco/qadrops#8, green on GitHub (123 tests). CI on the
