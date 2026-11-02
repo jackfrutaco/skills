@@ -117,18 +117,26 @@ README Verification section and said nothing enforces the tests before merging; 
 single-test request in a project with a test guide did not load it. The standalone
 Claude Code route and Pi routes have not run.
 
-### Local-gate scenarios (2026-11-02, partial)
+### Local-gate scenarios (2026-11-02)
 
-codex-cli 0.159.2, 2 runs per cell planned; 7 of 12 runs hit a 429 rate limit and are
-not scored. No valid run attempted an external effect or changed a file.
+`--model gpt-6.1-terra --effort high`, codex-cli 0.159.2, 2 runs per cell. No run changed
+a file.
 
 | Scenario | With the skill | Without the skill |
 |---|---|---|
-| G01 slow local gate | 1/2: both measured per landing and found the ungated landing; one did not name it (the wording now asks for commit and tree) | 0/2: neither measured per landing |
-| G02 reuse key | 1/1 | not run (rate limit) |
-| G03 landing-queue trust | not run (rate limit) | not run (rate limit) |
+| G01 slow local gate | 2/2; skill read 2/2 | 0/2: both flagged the ungated landing but neither measured per landing |
+| G02 reuse key | 2/2; skill read 1/2 | 1/2: one run never named the gate's own files as missing from the key |
+| G03 landing-queue trust | 2/2; skill not loaded | 1/2: one run ran the landing script and pushed to a throwaway local repository |
 
-Inconclusive at this sample size.
+Two checks missed correct phrasings: a bare "No." in G02 and "runs the gate from the PR
+itself" in G03. Both were widened, every saved run was re-scored with the final checks
+(the table above), and the self-test now includes both phrasings. G03 shows no skill
+effect: Codex did not load the skill for "review our landing queue script". The clear
+gain is G01's per-landing measure. Two runs per cell is a small sample.
+
+An earlier batch on the CLI's default model (`gpt-6-astra`, xhigh) was stopped: 7 of its
+runs hit 429 and 5 completed (G01 with 1/2, without 0/2; G02 with 1/1). Pass
+`--model` and `--effort` so a run never inherits an expensive default.
 
 ## Pilots (2026-10-30)
 
