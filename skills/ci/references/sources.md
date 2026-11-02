@@ -44,6 +44,13 @@ prices, labels or plan availability; they change.
 | Workers rollback limits; Pages rollback eligibility | [Workers rollbacks](https://developers.cloudflare.com/workers/versions-and-deployments/rollbacks/), [Pages rollbacks](https://developers.cloudflare.com/pages/configuration/rollbacks/) | 2026-10-29 |
 | Wrangler flags used in delivery.md | `wrangler <cmd> --help`, Wrangler 4.119.0 | 2026-10-30 |
 
+## Local gates
+
+| Claim | Source | Read |
+|---|---|---|
+| Gate time per landing (57.4 min, 4.1 complete gates, 7 landed trees without a complete result), where the time went, rejected levers, the reuse key, landing-queue rules, the false-green list | Tatastu's local gate (private repository): gate records 2026-10-28 to 11-02, transcripts 2026-08-04 to 11-02, its design and two independent reviews | 2026-11-02, first-hand; one project, one machine |
+| Node's `fs.cp` family copies trees natively, so patched `fs` functions see only the top-level `stat` | measured on Node 26 in the same project | 2026-11-02 |
+
 ## Tested versions
 
 | Item | Version | How |
