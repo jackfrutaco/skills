@@ -82,6 +82,7 @@ them as missing.
 - **Existing local-authoritative gate:** it stays the owner. Respect its candidate
   identity, lock and receipts. Do not add a second locking or receipt engine, and do
   not reuse a result after the candidate, base, dependencies, config or runtime changed.
+  Measuring, speeding up or auditing such a gate: [local-gates.md](local-gates.md).
 - **Shared or dirty checkout:** verify a committed candidate (a temporary worktree or
   the gate's own isolation), never the unrelated working-tree edits of someone else.
 

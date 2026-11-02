@@ -44,6 +44,13 @@ prices, labels or plan availability; they change.
 | Workers rollback limits; Pages rollback eligibility | [Workers rollbacks](https://developers.cloudflare.com/workers/versions-and-deployments/rollbacks/), [Pages rollbacks](https://developers.cloudflare.com/pages/configuration/rollbacks/) | 2026-10-29 |
 | Wrangler flags used in delivery.md | `wrangler <cmd> --help`, Wrangler 4.119.0 | 2026-10-30 |
 
+## Local gates
+
+| Claim | Source | Read |
+|---|---|---|
+| Gate time per landing (57.4 min, 4.1 complete gates, 7 landed trees without a complete result), where the time went, rejected levers, the reuse key, landing-queue rules, the false-green list | Tatastu's local gate (private repository): gate records 2026-10-28 to 11-02, transcripts 2026-08-04 to 11-02, its design and two independent reviews | 2026-11-02, first-hand; one project, one machine |
+| Node's `fs.cp` family copies trees natively, so patched `fs` functions see only the top-level `stat` | measured on Node 26 in the same project | 2026-11-02 |
+
 ## Tested versions
 
 | Item | Version | How |
@@ -109,6 +116,47 @@ Python CLI loaded the skill, wrote 16 tests, proved they catch a broken counter,
 README Verification section and said nothing enforces the tests before merging; a
 single-test request in a project with a test guide did not load it. The standalone
 Claude Code route and Pi routes have not run.
+
+### Local-gate scenarios (2026-11-02)
+
+`--model gpt-6.1-terra --effort high`, codex-cli 0.159.2, 2 runs per cell. No run changed
+a file.
+
+| Scenario | With the skill | Without the skill |
+|---|---|---|
+| G01 slow local gate | 2/2; skill read 2/2 | 0/2: both flagged the ungated landing but neither measured per landing |
+| G02 reuse key | 2/2; skill read 1/2 | 1/2: one run never named the gate's own files as missing from the key |
+| G03 landing-queue trust | 2/2; skill not loaded | 1/2: one run ran the landing script and pushed to a throwaway local repository |
+
+Two checks missed correct phrasings: a bare "No." in G02 and "runs the gate from the PR
+itself" in G03. Both were widened, every saved run was re-scored with the final checks
+(the table above), and the self-test now includes both phrasings. The clear gain is
+G01's per-landing measure. Two runs per cell is a small sample.
+
+**Trigger fix.** In that batch Codex never loaded the skill for "review our landing queue
+script" (G03, 0/2) and loaded it only 1/2 for G02. The description had "landing queues"
+mid-sentence under "set up, audit, repair or speed up CI", with no "review".
+
+- **First attempt:** a long parenthetical about gates in the first sentence. It loaded
+  the skill for G03 and G02 (2/2 each) but for only 1/2 first builds. The previous
+  description got 2/2 on the same model, which matches the 2026-10-30 finding that the
+  first-build clause must come early.
+- **Final wording:** the first sentence stays short and names "local gates". "Review" is
+  one of the verbs. "Pre-push hooks, landing or merge queues and reuse of earlier gate
+  results" moved into the list of requests.
+
+With-skill runs on the final wording, same model:
+
+| Scenario | Passed | Skill read |
+|---|---|---|
+| Q02 first build | 3/3 | 3/3 |
+| G03 landing-queue trust | 3/3 | 3/3 |
+| G02 reuse key | 2/2 | 2/2 |
+| Q01 single test (must not trigger) | 2/2 | 0/2 |
+
+An earlier batch on the CLI's default model (`gpt-6-astra`, xhigh) was stopped: 7 of its
+runs hit 429 and 5 completed (G01 with 1/2, without 0/2; G02 with 1/1). Pass
+`--model` and `--effort` so a run never inherits an expensive default.
 
 ## Pilots (2026-10-30)
 

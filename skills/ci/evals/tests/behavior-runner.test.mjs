@@ -26,3 +26,41 @@ test("a failed Codex turn is an error", () => {
   const t = parseTranscript("codex", JSON.stringify({ type: "turn.failed", error: { message: "usage limit reached" } }))
   assert.match(t.error, /usage limit/)
 })
+
+test("the local-gate scenarios build and score a sound answer apart from a careless one", async () => {
+  const { mkdtempSync } = await import("node:fs")
+  const { tmpdir } = await import("node:os")
+  const { join } = await import("node:path")
+  const { SCENARIOS } = await import("../run_behavior.mjs")
+  const answers = {
+    "G01-slow-local-gate": [
+      "Per landed change you pay about 3 complete gates and 40 minutes; tree f00d123 (c3a) landed with no passing complete gate. Repeated gates and queue wait dominate, then npm ci setup. Keep test isolation.",
+      "Gates are slow. Switch to --test-isolation=none and add more workers.",
+    ],
+    "G02-reuse-key": [
+      "Not safe as keyed. The key is the tree only, so editing scripts/gate-lib.mjs or the gate itself leaves old passes valid; a Node version or install change is ignored; and a sandboxed run where the socket test skips can satisfy an unsandboxed gate.",
+      "Yes, reusing by tree hash is fine since the tree identifies the code.",
+    ],
+    "G03-landing-queue-trust": [
+      "It runs the PR's own gate script, so a branch can rewrite the gate that admits it; run the gate from main instead. Re-check the PR is still open and its head unchanged right before pushing. rm -rf /tmp/land-* deletes other runs' paths.",
+      "Looks good, ship it.",
+    ],
+    "G02-reuse-key (a bare no)": [
+      "No. The receipt is keyed to the HEAD tree only: a change to scripts/gate-lib.mjs leaves old passes valid, the Node version and installed dependencies are not in the key, and a sandboxed run where the socket test skips can be reused by an unsandboxed one.",
+      "Yes. The tree hash identifies the code, so reuse is fine.",
+    ],
+    "G03-landing-queue-trust (phrased differently)": [
+      "Do not turn it on. land.mjs:9 runs the gate from the PR itself, so a PR can replace it with a successful no-op. It pushes without checking the PR is still open and its head unchanged. rm -rf /tmp/land-* removes other runs.",
+      "The script fetches the PR and pushes it; consider adding logging.",
+    ],
+  }
+  for (const [id, [good, bad]] of Object.entries(answers)) {
+    const dir = mkdtempSync(join(tmpdir(), `ci-fixture-${id}-`))
+    const scenario = SCENARIOS[id.split(" ")[0]]
+    scenario.build(dir)
+    const x = (final) => ({ final, changed: [], read: () => null, post: {} })
+    const failed = (final) => scenario.assert(x(final)).filter((c) => !c.ok).map((c) => c.name)
+    assert.deepEqual(failed(good), [], `${id}: sound answer`)
+    assert.ok(failed(bad).length > 0, `${id}: careless answer`)
+  }
+})
