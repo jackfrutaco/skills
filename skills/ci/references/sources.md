@@ -130,9 +130,20 @@ a file.
 
 Two checks missed correct phrasings: a bare "No." in G02 and "runs the gate from the PR
 itself" in G03. Both were widened, every saved run was re-scored with the final checks
-(the table above), and the self-test now includes both phrasings. G03 shows no skill
-effect: Codex did not load the skill for "review our landing queue script". The clear
-gain is G01's per-landing measure. Two runs per cell is a small sample.
+(the table above), and the self-test now includes both phrasings. The clear gain is
+G01's per-landing measure. Two runs per cell is a small sample.
+
+**Trigger fix.** In that batch Codex never loaded the skill for "review our landing queue
+script" (G03, 0/2) and loaded it only 1/2 for G02. The description had "landing queues"
+mid-sentence under "set up, audit, repair or speed up CI", with no "review". The
+description now leads with local gates, landing or merge queues and gate-result reuse,
+and its verbs include "review". With-skill runs on the new description, same model:
+
+| Scenario | Passed | Skill read | Read local-gates.md |
+|---|---|---|---|
+| G03 landing-queue trust | 2/2 | 2/2 | 2/2 |
+| G02 reuse key | 2/2 | 2/2 | 2/2 |
+| Q01 single test (must not trigger) | 2/2 | 0/2 | 0/2 |
 
 An earlier batch on the CLI's default model (`gpt-6-astra`, xhigh) was stopped: 7 of its
 runs hit 429 and 5 completed (G01 with 1/2, without 0/2; G02 with 1/1). Pass
