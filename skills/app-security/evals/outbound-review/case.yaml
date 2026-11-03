@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: outbound-review
+expected_outcome: |
+  Evidence-based review with redirect effects, redaction and scope discipline.
+context:
+  scaffold_script: place-files.sh
