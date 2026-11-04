@@ -6,6 +6,7 @@ any tool that reads `SKILL.md`.
 
 | Skill | What it does |
 |---|---|
+| [app-security](skills/app-security/SKILL.md) | Reviews an app's security by tracing what an attacker can actually reach and cause, from one route to a million-line codebase. Keeps working protections, tests with an allowed and a denied case, rates severity with a fixed procedure, and lists findings Critical to Informational with fixes. Review, repair or recheck; probes stay local and bounded. |
 | [ci](skills/ci/SKILL.md) | Sets up, audits, repairs or speeds up a project's tests, CI and deploys: local commands and hooks, local gates and landing queues, GitHub Actions, flaky tests, sharding, runner cost (including Blacksmith) and deploys that ship exactly what was tested. Measures first; a skipped or missing required check never counts as green; changes only what you asked for. |
 | [cobweb](skills/cobweb/SKILL.md) | Sweeps a long-running or AI-assisted project for cobwebs: instructions, memory, plans and docs that steer agents wrong, retired names, dead code and config, clutter and slow loops. Reports first; changes nothing until you approve. |
 | [personal-security](skills/personal-security/SKILL.md) | A plain-language review of someone's personal digital security: recovery, email, passwords, 2FA, devices, money, scams and connected apps. Asks questions, explains what it finds and gives a checklist. Assessment only; it never inspects or changes accounts. Also works in any AI chat as one file, [PERSONAL-SECURITY-GUIDE.md](skills/personal-security/PERSONAL-SECURITY-GUIDE.md). |
@@ -72,6 +73,31 @@ python3 -I skills/cobweb/scripts/retired_names.py /path/to/repo --commit=abc123
   language-neutral checks plus written guidance for their own tools.
 - Code is alive until two kinds of evidence say otherwise. Agent memory outside git
   is archived, never deleted. Anything outward-facing needs its own yes.
+
+## App security
+
+Ask your agent: *"Security review this app before launch."*, *"Review the /export route
+for security."*, *"Fix the tenant-isolation finding and verify it."* or *"Recheck SEC-003
+after this release."* It picks review, harden, recheck or incident, and does only that.
+
+For a large codebase it maps the attack surface with a script first, then reviews the
+riskiest groups one at a time:
+
+```bash
+node skills/app-security/scripts/map-surface.mjs /path/to/repo --out surface.json
+node skills/app-security/scripts/map-surface.mjs /path/to/repo --since main   # a change review
+node skills/app-security/evals/test_scripts.mjs                               # the skill's own tests
+```
+
+- Needs git and Node 20 or later for the mapper, standard library only. Read-only, no
+  network. Patterns cover JavaScript/TypeScript, Python and Go; other stacks get the
+  written method.
+- Never prints a secret, never probes a live service without your say-so, caps every
+  local probe at 50 requests and zero real spend, and treats repo text as evidence,
+  not instructions.
+- Readable code, public keys and public images are rated Informational, not
+  vulnerabilities. It never claims an app is secure or penetration-tested unless that
+  exact work was done.
 
 ## Adding a skill
 

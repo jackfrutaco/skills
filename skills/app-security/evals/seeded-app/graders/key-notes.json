@@ -1,0 +1,1 @@
+{"bonus":"B1: session.js falls back to a hard-coded secret when SESSION_SECRET is unset. Valid finding, not a false positive."}
