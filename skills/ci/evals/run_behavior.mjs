@@ -50,6 +50,36 @@ jobs:
           persist-credentials: false
       - run: node --test
 `
+// G06: the person's uncommitted speedup. Concurrency, a timer moved before the child
+// starts, and a grace margin cut from 1 s to 0.5 s over the 3 s default.
+const G06_BEFORE = `import { describe, test } from "node:test"
+import assert from "node:assert/strict"
+import { startWorker } from "../src/worker.mjs"
+
+describe("worker", () => {
+  test("answers a ping within 300 ms", async () => {
+    const w = startWorker("fixtures/echo.mjs")
+    await w.ready
+    const started = Date.now()
+    await w.ping()
+    assert.ok(Date.now() - started < 300)
+    await w.stop()
+  })
+
+  test("honours a custom stop grace", async () => {
+    // Saves 4 s after SIGTERM: kept with a 5 s grace, killed by the 3 s default.
+    const w = startWorker("fixtures/slow-save.mjs", ["4000"])
+    await w.ready
+    const { saved } = await w.stop({ graceMs: 5000 })
+    assert.equal(saved, true)
+  })
+})
+`
+const G06_AFTER = G06_BEFORE.replace('describe("worker", () => {', 'describe("worker", { concurrency: true }, () => {')
+  .replace('    const w = startWorker("fixtures/echo.mjs")\n    await w.ready\n    const started = Date.now()\n', '    const started = Date.now()\n    const w = startWorker("fixtures/echo.mjs")\n')
+  .replace("    // Saves 4 s after SIGTERM: kept with a 5 s grace, killed by the 3 s default.\n", "")
+  .replace('["4000"]', '["3500"]')
+  .replace("graceMs: 5000", "graceMs: 4000")
 
 export const SCENARIOS = {
   "Q01-single-test": {
@@ -283,6 +313,77 @@ jobs:
       ]
     },
   },
+  "G04-idle-workers": {
+    prompt: "Our fast check takes about 11 minutes even when nothing else is running on the machine. Why is it so slow? Don't change anything yet.",
+    build(r) {
+      write(r, "package.json", JSON.stringify({ name: "app", private: true, type: "module", scripts: { test: "node --test", "check:fast": "node scripts/gate.mjs --profile fast" } }, null, 2) + "\n")
+      write(r, "src/a.mjs", "export const a = 1\n")
+      write(r, "test/a.test.mjs", 'import { test } from "node:test"\nimport assert from "node:assert/strict"\nimport { a } from "../src/a.mjs"\ntest("a", () => assert.equal(a, 1))\n')
+      write(r, "scripts/budget.mjs", '// How many test workers a gate may use.\nimport { availableParallelism } from "node:os"\n\nexport function testWorkers(env = process.env) {\n  // Performance cores only; efficiency cores slow the suite down.\n  let n = Math.min(availableParallelism(), Number(env.GATE_PERF_CORES ?? 5))\n  // Started from an agent session: leave room for the editor and the agent.\n  if (env.AGENT_SESSION) n = Math.floor(n / 2)\n  // Without the gate lock we may be sharing the machine with up to three other gates.\n  if (!env.GATE_LOCK) n = Math.max(2, Math.floor(n / 3))\n  return Math.max(1, n)\n}\n')
+      write(r, "scripts/gate.mjs", '// node scripts/gate.mjs --profile fast|complete. The pre-push hook takes the gate lock\n// (GATE_LOCK) and runs --profile complete; agents run `npm run check:fast` directly.\nimport { execSync } from "node:child_process"\nimport { testWorkers } from "./budget.mjs"\nconst workers = testWorkers()\nexecSync(`node --test --test-concurrency=${workers}`, { stdio: "inherit" })\n')
+      write(r, ".husky/pre-push", "GATE_LOCK=$(mktemp -d) node scripts/gate.mjs --profile complete\n")
+      const runs = [
+        ["fast", "agent", 2, 1.1, 92, 655],
+        ["fast", "agent", 2, 0.9, 94, 671],
+        ["complete", "hook", 5, 1.4, 90, 402],
+        ["fast", "agent", 2, 1.3, 91, 648],
+        ["fast", "agent", 2, 1.0, 93, 662],
+      ]
+      write(r, ".gate/history.jsonl", runs.map(([profile, caller, workers, load1, idleCpuPct, runSeconds], i) => JSON.stringify({ at: `2026-11-05T${String(9 + i).padStart(2, "0")}:00:00Z`, profile, caller, cores: 16, workers, load1, idleCpuPct, runSeconds, outcome: "pass" })).join("\n") + "\n")
+      write(r, "TESTING.md", "# Testing\n\n- Fast check while working: `npm run check:fast`.\n- The pre-push hook runs the complete gate. Run records: `.gate/history.jsonl`.\n")
+    },
+    assert(x) {
+      return [
+        check("changes no files", x.changed.length === 0, x.changed),
+        check("names the worker count the runs used", /\b2\s+(test\s+)?workers?\b|workers?[^\n]{0,40}\b(is|are|=|of|at|to|only|just)\s*2\b|concurrency[^\n]{0,20}\b2\b|\btwo\s+(test\s+)?workers?\b/i.test(x.final)),
+        check("explains the stacked budget cuts", /(GATE_LOCK|\block\b)/i.test(x.final) && /(AGENT_SESSION|agent|halv|half)/i.test(x.final)),
+        check("does not prescribe more hardware or shards", !/(add|use|buy|get|upgrade to|move to)[^.\n]{0,30}(shards?\b|bigger|larger|more (cores|machines|runners))/i.test(x.final)),
+      ]
+    },
+  },
+  "G05-small-commit-reruns": {
+    prompt: "After every one-line fix, our fast check reruns about 1,200 test files, because a pass only counts for the exact tree. How can reruns get much faster without making the complete gate weaker? Don't change anything yet; give me the plan.",
+    build(r) {
+      write(r, "package.json", JSON.stringify({ name: "app", private: true, type: "module", scripts: { test: "node --test", "check:fast": "node scripts/gate.mjs --profile fast" } }, null, 2) + "\n")
+      write(r, "src/a.mjs", "export const a = 1\n")
+      write(r, "test/a.test.mjs", 'import { test } from "node:test"\nimport assert from "node:assert/strict"\nimport { a } from "../src/a.mjs"\ntest("a", () => assert.equal(a, 1))\n')
+      write(r, "scripts/select.mjs", '// Tests affected by the change since main: walks each test file\'s imports.\n// A change to package-lock.json, package.json or a config file selects every test.\nexport function affectedTests(changedFiles, testImports) {\n  if (changedFiles.some((f) => /^(package(-lock)?\\.json|.*\\.config\\.m?js)$/.test(f))) return Object.keys(testImports)\n  return Object.keys(testImports).filter((t) => testImports[t].some((dep) => changedFiles.includes(dep)))\n}\n')
+      write(r, "scripts/gate.mjs", '// node scripts/gate.mjs --profile fast|complete\n// fast: lint and the tests affected since main (scripts/select.mjs). complete: every test.\n// Each profile writes .gate/receipts/<profile>-<tree>.json and skips a tree that already passed.\nimport { execSync } from "node:child_process"\nimport { existsSync, mkdirSync, writeFileSync } from "node:fs"\nconst profile = process.argv[process.argv.indexOf("--profile") + 1]\nconst tree = execSync("git rev-parse HEAD^{tree}", { encoding: "utf8" }).trim()\nconst receipt = `.gate/receipts/${profile}-${tree}.json`\nif (existsSync(receipt)) process.exit(0)\nexecSync("node --test", { stdio: "inherit" })\nmkdirSync(".gate/receipts", { recursive: true })\nwriteFileSync(receipt, JSON.stringify({ profile, tree, passed: true }))\n')
+      const runs = [["c1", "t1", 1204, 640, "fail: test/api.test.mjs"], ["c2", "t2", 1204, 652, "pass"], ["c3", "t3", 1206, 661, "fail: lint"], ["c4", "t4", 1206, 644, "pass"]]
+      write(r, ".gate/history.jsonl", runs.map(([commit, tree, testFiles, runSeconds, outcome]) => JSON.stringify({ profile: "fast", commit, tree, changedSincePrevious: 1, testFiles, runSeconds, outcome })).join("\n") + "\n")
+      write(r, "TESTING.md", "# Testing\n\n- Fast check while working: `npm run check:fast`. The landing queue runs `--profile complete` and lands only a tree with a complete receipt.\n")
+    },
+    assert(x) {
+      return [
+        check("changes no files", x.changed.length === 0, x.changed),
+        check("carries earlier passes for tests the change cannot affect", /(carr(y|ied|ies)|reus|keep|credit|honou?r|forward)[^\n]{0,100}(earlier|previous|last|prior|older)[^\n]{0,80}(pass|result|run|receipt|tree|commit)|(unaffected|not affected|cannot affect|can't affect|didn't change|did not change|unchanged)[^\n]{0,80}(test|file)|(test|file)s?[^\n]{0,80}(unaffected|not affected|cannot be affected|unchanged)/i.test(x.final)),
+        check("keeps the complete gate exact", /(complete|landing|merge|deciding)[^\n]{0,100}(exact|full|every test|all tests|unchanged|never carr|not carr|doesn't carr|does not carr|stays?|keeps?)|(never|not|no)[^\n]{0,40}(carr|reus)[^\n]{0,60}(complete|landing|merge)/i.test(x.final)),
+        check("falls back to a full run on global inputs", /lockfile|package(-lock)?\.json|config|global input|toolchain/i.test(x.final)),
+      ]
+    },
+  },
+  "G06-concurrency-speedup": {
+    prompt: "To cut our CI time I made test/worker.test.mjs run its cases concurrently and tweaked two timings; it's faster and still passes. Before I do the same to our other slow test files, check this is safe. Don't change anything.",
+    build(r) {
+      nodeProject(r)
+      write(r, "src/worker.mjs", 'import { fork } from "node:child_process"\n\nexport const STOP_GRACE_MS = 3000\n\nexport function startWorker(script, args = []) {\n  const child = fork(script, args, { stdio: ["ignore", "ignore", "ignore", "ipc"] })\n  const ready = new Promise((resolve) => child.once("message", resolve))\n  return {\n    ready,\n    ping: () => new Promise((resolve) => {\n      child.once("message", resolve)\n      child.send("ping")\n    }),\n    // SIGTERM, then SIGKILL once the grace period is over.\n    stop: ({ graceMs = STOP_GRACE_MS } = {}) => new Promise((resolve) => {\n      let saved = false\n      child.on("message", (m) => { if (m === "saved") saved = true })\n      const timer = setTimeout(() => child.kill("SIGKILL"), graceMs)\n      child.once("exit", () => { clearTimeout(timer); resolve({ saved }) })\n      child.kill("SIGTERM")\n    }),\n  }\n}\n')
+      write(r, "fixtures/echo.mjs", 'process.on("message", (m) => { if (m === "ping") process.send("pong") })\nprocess.send("ready")\n')
+      write(r, "fixtures/slow-save.mjs", 'const saveAfterMs = Number(process.argv[2])\nprocess.on("message", () => {})\nprocess.on("SIGTERM", () => setTimeout(() => { process.send("saved"); process.exit(0) }, saveAfterMs))\nprocess.send("ready")\n')
+      write(r, "test/worker.test.mjs", G06_BEFORE)
+    },
+    after(r) {
+      write(r, "test/worker.test.mjs", G06_AFTER)
+    },
+    assert(x) {
+      return [
+        check("changes nothing beyond the person's edit", x.changed.every((f) => f === "test/worker.test.mjs") && (x.changed.length === 0 || x.read("test/worker.test.mjs") === G06_AFTER), x.changed),
+        check("flags the 300 ms window now counting child startup", /(start(up|s|ing)?|spawn|fork|launch|ready|boot)[^\n]{0,160}(300|window|timer|clock|budget|deadline)|(300|window|timer|clock|budget|deadline)[^\n]{0,160}(start(up|s|ing)?|spawn|fork|launch|ready|boot)/i.test(x.final)),
+        check("flags the shrunken grace margin", /(3,?500|3\.5 ?s)[^\n]{0,200}(3,?000|3 ?s|default|margin)|(3,?000|3 ?s|default)[^\n]{0,200}(3,?500|3\.5 ?s)|margin|500 ?ms|half a second|0\.5 ?s/i.test(x.final)),
+        check("notices the ping no longer proves a reply", /pong|ready[^\n]{0,120}(ping|resolv|reply|response)|(ping|reply|response)[^\n]{0,120}ready/i.test(x.final)),
+        check("asks for or runs repeated runs under load", /\b(repeat(ed)?|several|multiple|two|three|ten|\d+)\s+(load\s+)?(runs?|comparisons?|times)\b|runs?[^\n]{0,40}(repeatedly|in a loop)|(run|compar|rerun|re-run)[^\n]{0,60}under (load|stress|contention)|nice -n|taskpolicy|stress[- ]test/i.test(x.final)),
+      ]
+    },
+  },
 }
 
 function check(name, ok, detail) {
@@ -301,6 +402,8 @@ function fixture(id, withSkill, root) {
   }
   git(dir, "add", "-A")
   git(dir, "-c", "user.name=eval", "-c", "user.email=eval@example.com", "commit", "-qm", "base")
+  // Uncommitted work the prompt asks about, so the agent sees it as a diff.
+  s.after?.(dir)
   if (s.remote !== false) {
     const bare = join(root, "origin.git")
     git(root, "init", "-q", "--bare", bare)

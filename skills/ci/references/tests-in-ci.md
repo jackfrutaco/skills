@@ -76,6 +76,54 @@ on PRs only when:
 Push to the default branch, merge queue and release always run the full set. The gate's
 path selection is coarser: it decides which jobs run, never which tests inside a job.
 
+Selection has its own costs:
+
+- **Time it.** Walking every test's imports on each run cost up to 111 s in one audited
+  project. Cache each test's dependency list, and drop the cache when anything that
+  steers resolution changes: lockfile, package manager config, workspace manifests,
+  path aliases, and the selector's own code. On a case-insensitive file system, compare
+  paths case-insensitively, since a new `Foo.ts` can change what `./foo` resolves to.
+- **Unbounded tests set the floor.** Tests that read the repository in ways the graph
+  cannot see (whole-tree walks, spawned scripts, computed paths) must run on every
+  change; there, 116 such tests were most of a small rerun. A test may declare the
+  paths it reads, if: the declaration sits in a fixed place (the file's leading comment,
+  never anywhere a fixture string could match); it adds to what the scanner finds
+  rather than replacing it; a declared path that is not tracked cancels the declaration;
+  and only early feedback honors it, while the deciding run treats the test as
+  unbounded.
+
+## Making slow tests cheaper
+
+Time every file once, sort, and work down from the slowest; the top 100 files are
+usually most of the time. In one audited project this cut total test time from 1,081 s
+to 773 s and the slowest 100 files by 37%, with no assertion removed. What worked:
+
+- **Build expensive fixtures once per file, copy per test.** A git repository, a
+  migrated database, a generated contract. When the copy embeds absolute paths, rewrite
+  them and fail loudly if an expected one is missing.
+- **Start from a database snapshot** instead of replaying hundreds of migrations per
+  test; keep at least one test that runs the real migrations.
+- **Run independent cases concurrently** inside a file, only where each test owns its
+  fixture, temp folder, ports and processes. Shared lists emptied "after each" become
+  per-test fixtures; cleanup that would kill another test's processes moves to the end
+  of the file.
+- **Merge near-duplicate tests** that repeat the same expensive setup, keeping every
+  assertion.
+- **Wait on events, not timers,** and make production intervals and grace periods
+  injectable so a test does not sit out a 3 s default.
+- **Batch subprocess work.** One `git cat-file --batch` or `ls-tree` instead of one
+  `git show` per file; remember results that cannot change within a run.
+- **Find per-process costs on the platform.** Measured on macOS: `/usr/bin/git` is a
+  wrapper costing about 10 ms per call against about 4 ms for the real binary (put the
+  directory from `git --exec-path` first on `PATH`), and the first run of a newly
+  written executable costs 0.15 to 0.5 s while it is checked (link to one that already
+  ran, or run scripts through `sh`). Fixture repositories should turn off git's
+  automatic maintenance and garbage collection.
+
+Then check the rewrites for lost protection ([flaky.md](flaky.md#after-a-speedup)):
+concurrency and shorter waits change timing, and a merged test can quietly drop a
+byte-for-byte or exit-code check.
+
 ## Retention
 
 Choose `retention-days` per artifact from how long failures are investigated and any

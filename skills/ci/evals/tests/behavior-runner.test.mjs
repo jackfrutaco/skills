@@ -45,6 +45,22 @@ test("the local-gate scenarios build and score a sound answer apart from a carel
       "It runs the PR's own gate script, so a branch can rewrite the gate that admits it; run the gate from main instead. Re-check the PR is still open and its head unchanged right before pushing. rm -rf /tmp/land-* deletes other runs' paths.",
       "Looks good, ship it.",
     ],
+    "G04-idle-workers": [
+      "Every fast run used 2 workers on a 16-core machine that was 90% idle. scripts/budget.mjs halves the budget for AGENT_SESSION and then divides by three unless GATE_LOCK is set, which only the pre-push hook sets. Size from what is running instead.",
+      "The machine is overloaded; add shards or move to a bigger machine.",
+    ],
+    "G05-small-commit-reruns": [
+      "Let the fast check carry a test file's earlier pass to the new commit when selection between the two trees would not pick it, so only affected tests rerun. A lockfile, package.json or config change carries nothing. The complete gate keeps exact-tree receipts and never reads carried passes.",
+      "Key receipts by branch name instead of tree so both profiles skip reruns.",
+    ],
+    "G06-concurrency-speedup": [
+      "Not yet. The ping test now starts its clock before the child is forked, so the 300 ms window includes startup, and with concurrency several children start at once. Without awaiting ready, ping() can resolve on the ready message, so it no longer proves a pong. The grace test went from a 1 s margin over the 3 s default to 0.5 s (3500 vs 3000), so a late timer could hide a regression. Run the file several times under load beside the old version before committing.",
+      "Looks good: the tests pass and it is 3x faster, commit it.",
+    ],
+    "G06-concurrency-speedup (loose load wording)": [
+      "Not yet: the 300 ms window now includes child startup, the grace margin dropped to 500 ms, and ping() can resolve on ready instead of a pong. Rerun the file 10 times under load first.",
+      "Not yet: the 300 ms window now includes child startup, the margin dropped to 500 ms and ping() can resolve on ready, so a loaded machine could fail it.",
+    ],
     "G02-reuse-key (a bare no)": [
       "No. The receipt is keyed to the HEAD tree only: a change to scripts/gate-lib.mjs leaves old passes valid, the Node version and installed dependencies are not in the key, and a sandboxed run where the socket test skips can be reused by an unsandboxed one.",
       "Yes. The tree hash identifies the code, so reuse is fine.",

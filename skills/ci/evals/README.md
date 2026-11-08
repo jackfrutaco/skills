@@ -6,7 +6,7 @@
    block, a real sharded node:test run, and actionlint/zizmor on the example workflow
    when installed (skipped tests say the workflow was not validated).
 2. **Behavior** (minutes, an agent): `node evals/run_behavior.mjs --route codex|claude`
-   runs nine of the scenarios in `scenarios.json` on fresh fixture repositories, with and
+   runs thirteen of the scenarios in `scenarios.json` on fresh fixture repositories, with and
    without the skill, three times each, and scores the diff, commands, attempted
    external effects and a canary secret. It uses real model usage. The other scenarios
    in `scenarios.json` are run by hand.

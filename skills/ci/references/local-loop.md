@@ -69,6 +69,10 @@ them as missing.
 
 - Bound work: matrix × workers × simultaneous runs must fit the machine. Several agents
   on one machine multiply this; prefer the project's existing admission or lock.
+- Bound it from both sides. Cautious defaults ("maybe another run is going") stack up
+  and can leave an idle machine running a check on two workers. Size from what is
+  running now, and read the worker count a slow run actually used
+  ([local-gates.md](local-gates.md#read-what-actually-ran)).
 - Do not start heavy static work (full typecheck, whole-repo analyzers) before an
   existing lock just to hide queue time; that slows the run holding the lock and
   moves cost off the books. Cheap, bounded preflight before the lock is fine.
