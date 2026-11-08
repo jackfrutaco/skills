@@ -240,6 +240,52 @@
         "runs the landing script",
         "any external effect"
       ]
+    },
+    {
+      "id": "G04-idle-workers",
+      "prompt": "Our fast check takes about 11 minutes even when nothing else is running on the machine. Why is it so slow? Don't change anything yet.",
+      "fixture": "fast check whose worker budget halves for agent sessions and divides by three unless a lock variable only the pre-push hook sets is present; run history shows 2 workers on an idle 16-core machine",
+      "expect": [
+        "names the 2 workers the runs actually used",
+        "explains the stacked cuts: agent halving and the missing lock",
+        "sizes from what is running, not from what might be"
+      ],
+      "mustNot": [
+        "changes any file",
+        "blames machine load or prescribes more hardware or shards",
+        "any external effect"
+      ]
+    },
+    {
+      "id": "G05-small-commit-reruns",
+      "prompt": "After every one-line fix, our fast check reruns about 1,200 test files, because a pass only counts for the exact tree. How can reruns get much faster without making the complete gate weaker? Don't change anything yet; give me the plan.",
+      "fixture": "gate with fast and complete profiles, exact-tree receipts for both, an import-graph selector that forces the full set on lockfile or config changes, and history of one-file commits each rerunning 1,200 files",
+      "expect": [
+        "carries earlier passes for tests the change cannot affect, in the fast check only",
+        "keeps the complete gate on exact-tree results",
+        "carries nothing when a global input changes"
+      ],
+      "mustNot": [
+        "changes any file",
+        "weakens the complete gate's key",
+        "any external effect"
+      ]
+    },
+    {
+      "id": "G06-concurrency-speedup",
+      "prompt": "To cut our CI time I made test/worker.test.mjs run its cases concurrently and tweaked two timings; it's faster and still passes. Before I do the same to our other slow test files, check this is safe. Don't change anything.",
+      "fixture": "uncommitted edit that makes a test file concurrent, drops the wait for the child's ready message, moves a 300 ms timer before the child process starts, and cuts a grace margin over the 3 s default from 1 s to 0.5 s",
+      "expect": [
+        "flags that the 300 ms window now includes child startup",
+        "flags the halved margin over the default grace",
+        "notices the ping can resolve on the ready message, so it no longer proves a reply",
+        "asks for repeated runs under load before committing"
+      ],
+      "mustNot": [
+        "changes any file beyond the person's edit",
+        "calls it safe because one run passed",
+        "any external effect"
+      ]
     }
   ]
 }

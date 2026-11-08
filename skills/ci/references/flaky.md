@@ -19,6 +19,23 @@ environment.
    replace live third-party calls with fakes or recordings. Raising a timeout is valid
    only with a measured reason and review; lowering one invites flakiness.
 
+## After a speedup
+
+Making tests concurrent or cutting their waits creates flakes that a quiet run hides.
+Before keeping such a change:
+
+- Re-read every timing window. A window that used to start after a child process was
+  running may now include its startup, and several children now start at once.
+- Keep the margin that proves a regression would fail. Shortening a wait from 4 s to
+  3.5 s against a 3 s default halves that margin; under load a late timer can then
+  hide the regression.
+- Run the changed files several times under deliberate load (low CPU priority, such as
+  `taskpolicy -c background` on macOS or `nice -n 19`, beside other work), and the old
+  versions under the same load, so a failure is compared like with like.
+- Have someone other than the author check for dropped assertions, exact-output checks
+  and exit codes. In one audited project, review of 30 sped-up files found one
+  reproducible flake and three weakened checks.
+
 ## Retries
 
 - **Diagnostic retries** (re-running to learn) keep every attempt and never change the

@@ -50,6 +50,11 @@ prices, labels or plan availability; they change.
 |---|---|---|
 | Gate time per landing (57.4 min, 4.1 complete gates, 7 landed trees without a complete result), where the time went, rejected levers, the reuse key, landing-queue rules, the false-green list | Tatastu's local gate (private repository): gate records 2026-10-28 to 11-02, transcripts 2026-08-04 to 11-02, its design and two independent reviews | 2026-11-02, first-hand; one project, one machine |
 | Node's `fs.cp` family copies trees natively, so patched `fs` functions see only the top-level `stat` | measured on Node 26 in the same project | 2026-11-02 |
+| Fast check: 2 workers on an idle 15-core machine from stacked budget cuts; 72% of gate minutes, 3.7 runs per landing, 67 of 140 runs failed; 40 of 59 static failures were timeouts waiting on another gate's slot; selection up to 111 s; 116 unbounded tests | Same project: gate records 2026-11-02 to 11-08 (387 runs, 38 landings), process command lines of live runs | 2026-11-08, first-hand |
+| Rerun after a one-line fix: 794 s before, 91 s with carried passes, 5 workers, cached selection and declared reads; first runs gain much less | Same project, temporary benchmark worktrees at load 8 to 12. The 794 s run selected about 1,200 test files; the 91 s benchmark ran on a smaller branch, so the large case was not re-measured end to end | 2026-11-08, first-hand |
+| Slow-tail work: total test time 1,081 s to 773 s, slowest 100 files 751 s to 475 s, no assertion removed; review of the rewrites found 1 flake and 3 weakened checks | Same project, full portable-suite timing before and after (21,397 tests), plus an independent test review | 2026-11-08, first-hand |
+| macOS `/usr/bin/git` about 10 ms per call against about 4 ms for the binary in `git --exec-path`; a newly written executable's first run costs 0.15 to 0.5 s, a symlink to one that already ran costs nothing | Measured on macOS 26 with Xcode's git 2.50 | 2026-11-08 |
+| TypeScript 7.0.2 (native) checked about 6,700 files in 9 to 11 s cold and about 1 s warm, against 52 s for TypeScript 5.9.3 with incremental state; same file list; exits 1 on type errors where 5.9 exits 2; both packages declare a `tsc` bin; 7 no longer loads every ambient `@types` package | Same project, installed side by side (`typescript-native` aliased to `typescript@7.0.2`) | 2026-11-08 |
 
 ## Tested versions
 
@@ -157,6 +162,28 @@ With-skill runs on the final wording, same model:
 An earlier batch on the CLI's default model (`gpt-6-astra`, xhigh) was stopped: 7 of its
 runs hit 429 and 5 completed (G01 with 1/2, without 0/2; G02 with 1/1). Pass
 `--model` and `--effort` so a run never inherits an expensive default.
+
+### Speed scenarios (2026-11-08)
+
+`--model gpt-6.1-terra --effort high`, codex-cli 0.159.2. No run changed a file or
+attempted an external effect.
+
+| Scenario | With the skill | Without the skill |
+|---|---|---|
+| G04 idle workers | 2/2; both read local-gates.md | 1/2: one blamed only the missing lock, not the agent halving |
+| G05 small-commit reruns | 2/2 | 2/2: the scenario does not separate the conditions yet |
+| G06 concurrency speedup (CI-framed prompt, 3 runs) | 3/3; all read flaky.md; one ran the file repeatedly, two named load runs as not yet done | 0/3: none asked for runs under load |
+| G01 to G03 (regression, with the skill only) | 2/2 each | not rerun |
+
+G06 needed two rounds. The first prompt ("check it's safe before I commit") reads as a
+single-test review, and the skill read only `SKILL.md`: 0/2 with and without. Every
+answer in both conditions also found a defect the fixture had not planned (the ping can
+resolve on the ready message), so that became a check. After the speedup rule moved
+into `SKILL.md`'s repair step and the prompt named the CI goal, the skill read
+`flaky.md` 3/3. Two checks were widened after reading answers: the margin check missed
+"500 ms", and the load check accepted only "run … under load", missing "I did not run
+repeated load comparisons". Every saved G06 run was re-scored with the final checks
+(the table above). Two or three runs per cell is a small sample.
 
 ## Pilots (2026-10-30)
 

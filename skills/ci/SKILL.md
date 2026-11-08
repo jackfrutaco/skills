@@ -24,6 +24,8 @@ exact candidate. Speed and spend are optimized under that constraint, never inst
    success. Only an affirmative, versioned no-op may omit product checks. A reused
    result counts only when its whole key matches (tree, gate revision, toolchain,
    install, environment); a test skipped in one environment never passes for another.
+   Early feedback may carry a pass to a newer commit the change cannot affect; the
+   deciding check never does.
 4. **When scope is unknown, run more, not less.** Missing base history, an unsupported
    dependency graph, a changed lockfile or config, or a classifier error selects the
    conservative full set, or fails with the reason.
@@ -34,7 +36,9 @@ exact candidate. Speed and spend are optimized under that constraint, never inst
 6. **Measure, then change.** Use the project's history where it exists. Without
    history, take bounded local measurements or say the budget is provisional. Never
    report a missing measurement, cost or test run as zero or as passing. For local and
-   merge gates the measure is gate time per landed change, not per run.
+   merge gates the measure is gate time per landed change, not per run. Before blaming
+   the machine or the suite, read what a slow run actually did: workers used, tests
+   selected, time spent waiting.
 7. **The repository owns the commands.** Workflows and hooks call the project's own
    scripts; a person can run the same command locally. The project's CI must not depend
    on this skill being installed: copy what it needs into the repository.
@@ -150,7 +154,10 @@ release), whether it is required before merge, before release, or advisory.
    [references/flaky.md](references/flaky.md) for nondeterminism.
 2. Find the smallest change at the boundary that failed. Keep the required evidence.
 3. Re-run the affected command and the gate; compare like with like (same event,
-   runner, cache state) before claiming a speedup. Report latency and total compute.
+   runner, cache state, machine load) before claiming a speedup. Report latency and
+   total compute. A sped-up test is not done when it passes once: re-check its timing
+   windows and margins, look for dropped assertions, and run it several times under
+   load beside the old version ([references/flaky.md](references/flaky.md#after-a-speedup)).
 4. A change to result reuse, a landing queue or what counts as passed runs once through
    the real gate on a disposable commit and gets an independent review before anyone
    relies on it ([references/local-gates.md](references/local-gates.md)).
@@ -167,10 +174,10 @@ Drills use disposable or staging targets.
 | Read | When |
 |---|---|
 | [local-loop.md](references/local-loop.md) | Commands, tiers, hooks, machine limits, no-remote projects |
-| [local-gates.md](references/local-gates.md) | Slow local gates, gate time per landing, result reuse keys, landing queues |
+| [local-gates.md](references/local-gates.md) | Slow local gates, gate time per landing, result reuse keys, fast feedback between commits, gates sharing a machine, landing queues |
 | [github-actions.md](references/github-actions.md) | Events, gate, policy, concurrency, protection changes |
-| [tests-in-ci.md](references/tests-in-ci.md) | Reports, sharding, affected selection, isolation |
-| [flaky.md](references/flaky.md) | Retries, diagnosis, quarantine |
+| [tests-in-ci.md](references/tests-in-ci.md) | Reports, sharding, affected selection and its cost, isolation, making slow tests cheaper |
+| [flaky.md](references/flaky.md) | Retries, diagnosis, checking a speedup, quarantine |
 | [runners-budget.md](references/runners-budget.md) | Runner choice, Blacksmith, caches, cost and budgets |
 | [delivery.md](references/delivery.md) | Release artifacts, promotion, rollback, health |
 | [security.md](references/security.md) | Forks, privileged events, pinning, secrets, validators |
